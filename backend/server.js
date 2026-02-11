@@ -9,22 +9,30 @@ const userRoutes = require('./src/routes/userRoutes');
 const initializeSocket = require('./src/socket/socketHandler');
 
 const app = express();
+app.set("trust proxy", 1); // Helper for Render reverse proxy
+
 const server = http.createServer(app);
+
+const allowedOrigin = process.env.CLIENT_URL || "*";
 
 // Initialize Socket.IO with CORS
 const io = new Server(server, {
     cors: {
-        origin: '*',
+        origin: allowedOrigin,
         methods: ['GET', 'POST'],
         credentials: true,
     },
 });
 
 // Connect to MongoDB
-connectDB();
+// connectDB(); // Removed direct call
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: process.env.CLIENT_URL || "*",
+    methods: ["GET", "POST"],
+    credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -51,7 +59,18 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📡 Socket.IO server ready`);
-});
+const startServer = async () => {
+    try {
+        await connectDB();
+
+        server.listen(PORT, () => {
+            console.log(`🚀 Server running on port ${PORT}`);
+            console.log(`📡 Socket.IO server ready`);
+        });
+    } catch (error) {
+        console.error("DB connection failed:", error);
+        process.exit(1);
+    }
+};
+
+startServer();
