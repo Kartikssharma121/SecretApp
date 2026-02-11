@@ -21,8 +21,16 @@ const ChatScreen = ({ navigation, route }) => {
     const matchData = useSelector((state) => state.socket.matchData);
     const messages = useSelector((state) => state.socket.messages);
     const queueStatus = useSelector((state) => state.socket.queueStatus);
-    const isPartnerTyping = useSelector((state) => state.socket.isPartnerTyping);
-    const userId = useSelector((state) => state.auth.user._id);
+    const isSocketConnected = useSelector((state) => state.socket.isConnected);
+
+    // Safe navigation helper
+    const safeGoBack = () => {
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+        } else {
+            navigation.navigate('Home');
+        }
+    };
 
     const socket = useSocket();
     const [isSearching, setIsSearching] = useState(true);
@@ -31,9 +39,9 @@ const ChatScreen = ({ navigation, route }) => {
     const [messageText, setMessageText] = useState('');
     const flatListRef = useRef(null);
 
-    // Join queue on mount
+    // Join queue when socket is connected
     useEffect(() => {
-        if (socket.socket) {
+        if (isSocketConnected && socket.socket) {
             socket.joinQueue(type, preferences);
         }
 
@@ -45,15 +53,17 @@ const ChatScreen = ({ navigation, route }) => {
                 [
                     {
                         text: 'Close',
-                        onPress: () => navigation.goBack(),
+                        onPress: () => safeGoBack(),
                     },
                     {
                         text: 'Find New',
                         onPress: () => {
-                            socket.joinQueue(type, preferences);
-                            setIsSearching(true);
-                            setPartnerId(null);
-                            setMatchId(null);
+                            if (isSocketConnected) {
+                                socket.joinQueue(type, preferences);
+                                setIsSearching(true);
+                                setPartnerId(null);
+                                setMatchId(null);
+                            }
                         },
                     },
                 ]
@@ -65,7 +75,7 @@ const ChatScreen = ({ navigation, route }) => {
                 socket.leaveQueue(type);
             }
         };
-    }, []);
+    }, [isSocketConnected]);
 
     // Handle match found
     useEffect(() => {
@@ -118,7 +128,7 @@ const ChatScreen = ({ navigation, route }) => {
                 style: 'destructive',
                 onPress: () => {
                     socket.disconnectPartner();
-                    navigation.goBack();
+                    safeGoBack();
                 },
             },
         ]);
@@ -168,7 +178,7 @@ const ChatScreen = ({ navigation, route }) => {
                         style={styles.cancelButton}
                         onPress={() => {
                             socket.leaveQueue(type);
-                            navigation.goBack();
+                            safeGoBack();
                         }}>
                         <Text style={styles.cancelButtonText}>Cancel</Text>
                     </TouchableOpacity>

@@ -15,7 +15,16 @@ const VoiceCallScreen = ({ navigation, route }) => {
     const { preferences, type } = route.params;
     const matchData = useSelector((state) => state.socket.matchData);
     const queueStatus = useSelector((state) => state.socket.queueStatus);
-    const userId = useSelector((state) => state.auth.user._id);
+    const isSocketConnected = useSelector((state) => state.socket.isConnected);
+
+    // Safe navigation helper
+    const safeGoBack = () => {
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+        } else {
+            navigation.navigate('Home');
+        }
+    };
 
     const socket = useSocket();
     const [isSearching, setIsSearching] = useState(true);
@@ -27,9 +36,9 @@ const VoiceCallScreen = ({ navigation, route }) => {
         partnerId
     );
 
-    // Join queue on mount
+    // Join queue when socket is connected
     useEffect(() => {
-        if (socket.socket) {
+        if (isSocketConnected && socket.socket) {
             socket.joinQueue(type, preferences);
         }
 
@@ -40,16 +49,19 @@ const VoiceCallScreen = ({ navigation, route }) => {
                 'Stranger disconnected',
                 [
                     {
-                        text: 'End Call',
-                        onPress: () => navigation.goBack(),
+                        onPress: () => {
+                            safeGoBack();
+                        },
                     },
                     {
                         text: 'Find New',
                         onPress: () => {
-                            socket.joinQueue(type, preferences);
-                            setIsSearching(true);
-                            setPartnerId(null);
-                            setMatchId(null);
+                            if (isSocketConnected) {
+                                socket.joinQueue(type, preferences);
+                                setIsSearching(true);
+                                setPartnerId(null);
+                                setMatchId(null);
+                            }
                         },
                     },
                 ]
@@ -61,7 +73,7 @@ const VoiceCallScreen = ({ navigation, route }) => {
                 socket.leaveQueue(type);
             }
         };
-    }, []);
+    }, [isSocketConnected]);
 
     // Handle match found
     useEffect(() => {
@@ -86,7 +98,7 @@ const VoiceCallScreen = ({ navigation, route }) => {
                 onPress: () => {
                     endCall();
                     socket.disconnectPartner();
-                    navigation.goBack();
+                    safeGoBack();
                 },
             },
         ]);
@@ -115,7 +127,7 @@ const VoiceCallScreen = ({ navigation, route }) => {
                         style={styles.cancelButton}
                         onPress={() => {
                             socket.leaveQueue(type);
-                            navigation.goBack();
+                            safeGoBack();
                         }}>
                         <Text style={styles.cancelButtonText}>Cancel</Text>
                     </TouchableOpacity>
