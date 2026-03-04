@@ -8,6 +8,7 @@ const cors = require('cors');
 const connectDB = require('./src/config/db');
 const authRoutes = require('./src/routes/authRoutes');
 const userRoutes = require('./src/routes/userRoutes');
+const configRoutes = require('./src/routes/configRoutes');
 const initializeSocket = require('./src/socket/socketHandler');
 
 const app = express();
@@ -41,6 +42,7 @@ app.use(express.urlencoded({ extended: false }));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/config', configRoutes);
 
 // Health check
 app.get('/', (req, res) => {
