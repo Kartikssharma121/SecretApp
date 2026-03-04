@@ -33,10 +33,10 @@ const VoiceCallScreen = ({ navigation, route }) => {
     const [matchId, setMatchId] = useState(null);
     const offerTimeoutRef = useRef(null);
 
-    const { createOffer, toggleMute, endCall, isMuted, isConnected } = useWebRTC(
+    const { toggleMute, endCall, isMuted, isConnected } = useWebRTC(
         socket,
         partnerId,
-        matchData ? !matchData.isInitiator : false
+        matchData?.isInitiator || false
     );
 
     // Join queue when socket is connected
@@ -44,14 +44,6 @@ const VoiceCallScreen = ({ navigation, route }) => {
         if (!isSocketConnected || !socket.socket) return;
 
         socket.joinQueue(type, preferences);
-
-        // Cancel the offer-wait timeout as soon as a real offer arrives
-        const handleOffer = () => {
-            if (offerTimeoutRef.current) {
-                clearTimeout(offerTimeoutRef.current);
-                offerTimeoutRef.current = null;
-            }
-        };
 
         // Listen for partner disconnected
         const handleDisconnect = (data) => {
@@ -78,11 +70,9 @@ const VoiceCallScreen = ({ navigation, route }) => {
             );
         };
 
-        socket.onOffer(handleOffer);
         socket.onPartnerDisconnected(handleDisconnect);
 
         return () => {
-            socket.offOffer?.(handleOffer);
             socket.offPartnerDisconnected?.(handleDisconnect);
             if (!matchData) {
                 socket.leaveQueue(type);
@@ -90,19 +80,24 @@ const VoiceCallScreen = ({ navigation, route }) => {
         };
     }, [isSocketConnected]);
 
+    // Clear timeout safely when connection is established
+    useEffect(() => {
+        if (isConnected && offerTimeoutRef.current) {
+            clearTimeout(offerTimeoutRef.current);
+            offerTimeoutRef.current = null;
+        }
+    }, [isConnected]);
+
     // Handle match found
     useEffect(() => {
         if (matchData && matchData.type === 'call') {
+            console.log(matchData, "----matchData");
+
             setIsSearching(false);
             setPartnerId(matchData.partnerId);
             setMatchId(matchData.matchId);
 
-            // Determine who creates the offer using the backend flag to avoid glares
-            if (matchData.isInitiator) {
-                setTimeout(() => {
-                    createOffer().catch(err => console.error('Create offer error:', err));
-                }, 1000); // Small delay to let partner prepare
-            } else {
+            if (!matchData.isInitiator) {
                 console.log('Waiting for partner to send offer...');
                 // Safety timeout: if initiator never sends an offer (ghost user), find new
                 offerTimeoutRef.current = setTimeout(async () => {

@@ -21,7 +21,7 @@ const configuration = {
     iceTransportPolicy: 'all',
 };
 
-export const useWebRTC = (socket, partnerId, isPolite) => {
+export const useWebRTC = (socket, partnerId, isInitiator) => {
     const peerConnectionRef = useRef(null);
     const localStreamRef = useRef(null);
     const partnerRef = useRef(null);
@@ -29,7 +29,7 @@ export const useWebRTC = (socket, partnerId, isPolite) => {
 
     const makingOfferRef = useRef(false);
     const ignoreOfferRef = useRef(false);
-    const politeRef = useRef(isPolite);
+    const politeRef = useRef(!isInitiator);
     const restartingIceRef = useRef(false);
 
     const [isMuted, setIsMuted] = useState(false);
@@ -42,8 +42,8 @@ export const useWebRTC = (socket, partnerId, isPolite) => {
     }, [partnerId]);
 
     useEffect(() => {
-        politeRef.current = isPolite;
-    }, [isPolite]);
+        politeRef.current = !isInitiator;
+    }, [isInitiator]);
 
     /* ------------------ Peer Init ------------------ */
 
@@ -143,6 +143,19 @@ export const useWebRTC = (socket, partnerId, isPolite) => {
             makingOfferRef.current = false;
         }
     }, [initializePeerConnection, addLocalTracks, socket]);
+
+    /* ------------------ Auto Offer Event ------------------ */
+
+    useEffect(() => {
+        if (isInitiator && partnerId) {
+            // Small delay to ensure partner is ready
+            const offerTimer = setTimeout(() => {
+                createOffer();
+            }, 400);
+
+            return () => clearTimeout(offerTimer);
+        }
+    }, [isInitiator, partnerId, createOffer]);
 
     /* ------------------ Handle Offer ------------------ */
 
@@ -277,9 +290,16 @@ export const useWebRTC = (socket, partnerId, isPolite) => {
             socket.offOffer?.(offerHandler);
             socket.offAnswer?.(answerHandler);
             socket.offIceCandidate?.(iceHandler);
+        };
+    }, [socket, handleOffer, handleAnswer, handleIceCandidate]);
+
+    /* ------------------ Unmount Cleanup ------------------ */
+
+    useEffect(() => {
+        return () => {
             endCall();
         };
-    }, [socket, handleOffer, handleAnswer, handleIceCandidate, endCall]);
+    }, [endCall]);
 
     return {
         createOffer,
