@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -6,6 +6,7 @@ import {
     StyleSheet,
     ActivityIndicator,
     Alert,
+    AppState,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import useSocket from '../hooks/useSocket';
@@ -30,6 +31,7 @@ const VoiceCallScreen = ({ navigation, route }) => {
     const [isSearching, setIsSearching] = useState(true);
     const [partnerId, setPartnerId] = useState(null);
     const [matchId, setMatchId] = useState(null);
+    const offerTimeoutRef = useRef(null);
 
     const { createOffer, toggleMute, endCall, isMuted, isConnected } = useWebRTC(
         socket,
@@ -38,20 +40,27 @@ const VoiceCallScreen = ({ navigation, route }) => {
 
     // Join queue when socket is connected
     useEffect(() => {
-        if (isSocketConnected && socket.socket) {
-            socket.joinQueue(type, preferences);
-        }
+        if (!isSocketConnected || !socket.socket) return;
+
+        socket.joinQueue(type, preferences);
+
+        // Cancel the offer-wait timeout as soon as a real offer arrives
+        const handleOffer = () => {
+            if (offerTimeoutRef.current) {
+                clearTimeout(offerTimeoutRef.current);
+                offerTimeoutRef.current = null;
+            }
+        };
 
         // Listen for partner disconnected
-        socket.onPartnerDisconnected((data) => {
+        const handleDisconnect = (data) => {
             Alert.alert(
                 'Disconnected',
                 'Stranger disconnected',
                 [
                     {
-                        onPress: () => {
-                            safeGoBack();
-                        },
+                        text: 'OK',
+                        onPress: safeGoBack,
                     },
                     {
                         text: 'Find New',
@@ -66,9 +75,14 @@ const VoiceCallScreen = ({ navigation, route }) => {
                     },
                 ]
             );
-        });
+        };
+
+        socket.onOffer(handleOffer);
+        socket.onPartnerDisconnected(handleDisconnect);
 
         return () => {
+            socket.offOffer?.(handleOffer);
+            socket.offPartnerDisconnected?.(handleDisconnect);
             if (!matchData) {
                 socket.leaveQueue(type);
             }
@@ -89,8 +103,32 @@ const VoiceCallScreen = ({ navigation, route }) => {
                 }, 1000); // Small delay to let partner prepare
             } else {
                 console.log('Waiting for partner to send offer...');
+                // Safety timeout: if initiator never sends an offer (ghost user), find new
+                offerTimeoutRef.current = setTimeout(async () => {
+                    console.warn('Offer timeout — partner never sent offer, finding new match...');
+                    endCall();
+
+                    // Sync with DB before re-queuing
+                    await socket.disconnectPartner();
+
+                    // Small delay to let backend finish session cleanup before re-queuing
+                    setTimeout(() => {
+                        socket.joinQueue(type, preferences);
+                    }, 800);
+
+                    setIsSearching(true);
+                    setPartnerId(null);
+                    setMatchId(null);
+                }, 10000); // 10 seconds
             }
         }
+
+        return () => {
+            if (offerTimeoutRef.current) {
+                clearTimeout(offerTimeoutRef.current);
+                offerTimeoutRef.current = null;
+            }
+        };
     }, [matchData]);
 
     const handleEndCall = () => {
@@ -116,6 +154,22 @@ const VoiceCallScreen = ({ navigation, route }) => {
         setPartnerId(null);
         setMatchId(null);
     };
+
+    // End call if app goes to background (mobile critical)
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (nextAppState) => {
+            if (nextAppState !== 'active') {
+                console.log('App moved to background. Ending call...');
+                endCall();
+                socket.disconnectPartner();
+                safeGoBack();
+            }
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, [endCall, socket, safeGoBack]);
 
     return (
         <View style={styles.container}>

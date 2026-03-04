@@ -37,7 +37,18 @@ class MatchingService {
             });
 
             if (existingSession) {
-                return { success: false, message: 'Already in queue or active session' };
+                // Force-clean the stale session so the user can re-queue (e.g. after offer timeout)
+                console.log(`[MatchingService] Force-cleaning stale session for ${userId} before re-queue`);
+                await ActiveSession.deleteMany({ userId });
+                this.waitingQueues[type] = this.waitingQueues[type].filter(
+                    (item) => item.userId.toString() !== userId.toString()
+                );
+            }
+
+            // Fetch user to get gender for queue optimization
+            const user = await User.findById(userId);
+            if (!user) {
+                return { success: false, message: 'User not found' };
             }
 
             // Create new session
@@ -55,6 +66,7 @@ class MatchingService {
                 userId,
                 socketId,
                 preferences,
+                gender: user.gender, // store gender here to avoid DB call in loop
             });
 
             return { success: true, session };
@@ -82,18 +94,14 @@ class MatchingService {
                     continue;
                 }
 
-                // Get potential partner details
-                const potentialUser = await User.findById(potential.userId);
-                if (!potentialUser) continue;
-
-                // Check gender preferences
+                // Check gender preferences using stored gender
                 const currentUserPreference = preferences.gender;
                 const potentialUserPreference = potential.preferences.gender;
 
                 // Check if preferences match
                 const currentMatch =
                     currentUserPreference === 'Any' ||
-                    potentialUser.gender === currentUserPreference;
+                    potential.gender === currentUserPreference;
 
                 const potentialMatch =
                     potentialUserPreference === 'Any' ||
@@ -113,8 +121,40 @@ class MatchingService {
                         continue;
                     }
 
-                    // Match found! Remove from queue
+                    // ATOMIC DB LOCK: Only match if both users are still in 'waiting' status
+                    const userUpdate = await ActiveSession.findOneAndUpdate(
+                        { userId, status: 'waiting' },
+                        { status: 'matched', matchedWith: potential.userId }
+                    );
+
+                    if (!userUpdate) {
+                        // Current user was matched by someone else or left
+                        return null;
+                    }
+
+                    const partnerUpdate = await ActiveSession.findOneAndUpdate(
+                        { userId: potential.userId, status: 'waiting' },
+                        { status: 'matched', matchedWith: userId }
+                    );
+
+                    if (!partnerUpdate) {
+                        // Partner was matched by someone else or left
+                        // Rollback current user's status to 'waiting'
+                        await ActiveSession.findOneAndUpdate(
+                            { userId, status: 'matched' },
+                            { status: 'waiting', matchedWith: null }
+                        );
+                        // Remove stale partner from local queue view and continue loop
+                        queue.splice(i, 1);
+                        i--;
+                        continue;
+                    }
+
+                    // Match found! Remove both from in-memory queue to keep it clean
                     queue.splice(i, 1);
+                    this.waitingQueues[type] = queue.filter(
+                        (item) => item.userId.toString() !== userId.toString()
+                    );
 
                     return {
                         partnerId: potential.userId,

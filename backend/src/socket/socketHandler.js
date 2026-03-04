@@ -44,6 +44,14 @@ const initializeSocket = (io) => {
         const userId = socket.userId;
         console.log(`User connected: ${userId} - Socket: ${socket.id}`);
 
+        // Prevent dual login: Disconnect old socket if it exists
+        const existingSocketId = userSockets.get(userId);
+        if (existingSocketId && existingSocketId !== socket.id) {
+            console.log(`[Socket] Disconnecting old socket for user ${userId}`);
+            const oldSocket = io.sockets.sockets.get(existingSocketId);
+            oldSocket?.disconnect(true);
+        }
+
         // Store mapping
         userSockets.set(userId, socket.id);
         socketUsers.set(socket.id, userId);
@@ -80,8 +88,16 @@ const initializeSocket = (io) => {
                     // Match found!
                     console.log(`Match found: ${userId} <-> ${match.partnerId}`);
 
-                    // Remove current user from queue
-                    await matchingService.removeFromQueue(userId, type);
+                    // GHOST MATCH PROTECTION: Verify both sockets are still alive before DB record
+                    const currentSocketAlive = io.sockets.sockets.has(socket.id);
+                    const partnerSocketAlive = io.sockets.sockets.has(match.partnerSocketId);
+
+                    if (!currentSocketAlive || !partnerSocketAlive) {
+                        console.warn(`[Match] Aborting ghost match - Socket(s) died: current=${currentSocketAlive}, partner=${partnerSocketAlive}`);
+                        await matchingService.cleanupUserSessions(userId);
+                        await matchingService.cleanupUserSessions(match.partnerId);
+                        return;
+                    }
 
                     // Create match record
                     const matchRecord = await Match.create({
@@ -90,10 +106,6 @@ const initializeSocket = (io) => {
                         type,
                         startedAt: Date.now(),
                     });
-
-                    // Update session status
-                    await matchingService.updateSessionStatus(userId, 'matched', match.partnerId);
-                    await matchingService.updateSessionStatus(match.partnerId, 'matched', userId);
 
                     // Store active match
                     activeMatches.set(userId, {
@@ -150,8 +162,15 @@ const initializeSocket = (io) => {
         socket.on('offer', async (data) => {
             try {
                 const { offer, partnerId } = data;
-                const partnerSocketId = userSockets.get(partnerId);
 
+                // Security check: only allow signaling with active partner
+                const matchData = activeMatches.get(userId);
+                if (!matchData || matchData.partnerId !== partnerId) {
+                    console.warn(`[Security] Blocked unauthorized offer from ${userId} to ${partnerId}`);
+                    return;
+                }
+
+                const partnerSocketId = userSockets.get(partnerId);
                 if (partnerSocketId) {
                     io.to(partnerSocketId).emit('offer', {
                         offer,
@@ -167,8 +186,15 @@ const initializeSocket = (io) => {
         socket.on('answer', async (data) => {
             try {
                 const { answer, partnerId } = data;
-                const partnerSocketId = userSockets.get(partnerId);
 
+                // Security check
+                const matchData = activeMatches.get(userId);
+                if (!matchData || matchData.partnerId !== partnerId) {
+                    console.warn(`[Security] Blocked unauthorized answer from ${userId} to ${partnerId}`);
+                    return;
+                }
+
+                const partnerSocketId = userSockets.get(partnerId);
                 if (partnerSocketId) {
                     io.to(partnerSocketId).emit('answer', {
                         answer,
@@ -184,8 +210,15 @@ const initializeSocket = (io) => {
         socket.on('iceCandidate', async (data) => {
             try {
                 const { candidate, partnerId } = data;
-                const partnerSocketId = userSockets.get(partnerId);
 
+                // Security check
+                const matchData = activeMatches.get(userId);
+                if (!matchData || matchData.partnerId !== partnerId) {
+                    console.warn(`[Security] Blocked unauthorized ICE candidate from ${userId} to ${partnerId}`);
+                    return;
+                }
+
+                const partnerSocketId = userSockets.get(partnerId);
                 if (partnerSocketId) {
                     io.to(partnerSocketId).emit('iceCandidate', {
                         candidate,
@@ -201,6 +234,13 @@ const initializeSocket = (io) => {
         socket.on('message', async (data) => {
             try {
                 const { message, receiverId, matchId } = data;
+
+                // Security check
+                const matchData = activeMatches.get(userId);
+                if (!matchData || matchData.partnerId !== receiverId || matchData.matchId.toString() !== matchId.toString()) {
+                    console.warn(`[Security] Blocked unauthorized message from ${userId} to ${receiverId}`);
+                    return;
+                }
 
                 // Save message to database
                 const newMessage = await Message.create({
@@ -246,8 +286,14 @@ const initializeSocket = (io) => {
         socket.on('typing', (data) => {
             try {
                 const { partnerId, isTyping } = data;
-                const partnerSocketId = userSockets.get(partnerId);
 
+                // Security check
+                const matchData = activeMatches.get(userId);
+                if (!matchData || matchData.partnerId !== partnerId) {
+                    return;
+                }
+
+                const partnerSocketId = userSockets.get(partnerId);
                 if (partnerSocketId) {
                     io.to(partnerSocketId).emit('typing', {
                         senderId: userId,
@@ -282,15 +328,17 @@ const initializeSocket = (io) => {
                         io.to(partnerSocketId).emit('partnerDisconnected', {
                             partnerId: userId,
                             matchId,
-                            canReconnect: true,
+                            canReconnect: false, // cancelled match — no reconnect
                         });
                     }
 
-                    // Clean up active match
+                    // Clean up BOTH sides of the active match
                     activeMatches.delete(userId);
+                    activeMatches.delete(partnerId);
 
-                    // Update session
-                    await matchingService.updateSessionStatus(userId, 'waiting', null);
+                    // Clean up both sessions so neither user is stuck
+                    await matchingService.cleanupUserSessions(userId);
+                    await matchingService.cleanupUserSessions(partnerId);
 
                     socket.emit('disconnected', { matchId });
                 }
@@ -321,6 +369,12 @@ const initializeSocket = (io) => {
                 // Determine partner
                 const partnerId =
                     match.user1.toString() === userId ? match.user2.toString() : match.user1.toString();
+
+                // Check if either user is already in an active match
+                if (activeMatches.has(userId) || activeMatches.has(partnerId)) {
+                    socket.emit('error', { message: 'User already in active match' });
+                    return;
+                }
 
                 // Check if partner is online
                 const partnerSocketId = userSockets.get(partnerId);
@@ -400,6 +454,7 @@ const initializeSocket = (io) => {
                     }
 
                     activeMatches.delete(userId);
+                    activeMatches.delete(partnerId);
                 }
 
                 // Clean up sessions

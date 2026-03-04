@@ -191,6 +191,30 @@ export const useSocket = () => {
         }
     }, []);
 
+    const offOffer = useCallback((callback) => {
+        if (socketRef.current) {
+            socketRef.current.off('offer', callback);
+        }
+    }, []);
+
+    const offAnswer = useCallback((callback) => {
+        if (socketRef.current) {
+            socketRef.current.off('answer', callback);
+        }
+    }, []);
+
+    const offIceCandidate = useCallback((callback) => {
+        if (socketRef.current) {
+            socketRef.current.off('iceCandidate', callback);
+        }
+    }, []);
+
+    const offPartnerDisconnected = useCallback((callback) => {
+        if (socketRef.current) {
+            socketRef.current.off('partnerDisconnected', callback);
+        }
+    }, []);
+
     return {
         socket: socketRef.current,
         joinQueue,
@@ -206,6 +230,10 @@ export const useSocket = () => {
         onAnswer,
         onIceCandidate,
         onPartnerDisconnected,
+        offOffer,
+        offAnswer,
+        offIceCandidate,
+        offPartnerDisconnected,
     };
 };
 

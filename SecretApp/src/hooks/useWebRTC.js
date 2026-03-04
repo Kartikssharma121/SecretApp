@@ -30,16 +30,40 @@ export const useWebRTC = (socket, partnerId) => {
             peerConnectionRef.current.onconnectionstatechange = () => {
                 const state = peerConnectionRef.current?.connectionState;
                 console.log('Connection state:', state);
-                setIsConnected(state === 'connected');
+
+                if (state === 'connected') {
+                    setIsConnected(true);
+                }
+
+                if (state === 'failed' || state === 'disconnected') {
+                    console.log('Connection lost. Ending call.');
+                    endCall();
+                }
+
+                if (state === 'closed') {
+                    setIsConnected(false);
+                }
             };
 
             // Handle ICE connection state change
             peerConnectionRef.current.oniceconnectionstatechange = () => {
                 const state = peerConnectionRef.current?.iceConnectionState;
                 console.log('ICE connection state:', state);
+
+                if (state === 'failed') {
+                    console.log('ICE failed -> ending call');
+                    endCall();
+                }
+            };
+
+            // Handle remote track
+            peerConnectionRef.current.ontrack = (event) => {
+                console.log('Remote track received');
+                // For audio-only, we don't necessarily need to attach to a component, 
+                // but we could attach to a hidden <RTCView> if needed for some platforms.
             };
         }
-    }, [socket, partnerId]);
+    }, [socket, partnerId, endCall]);
 
     // Get local audio stream
     const getLocalStream = useCallback(async () => {
@@ -183,22 +207,29 @@ export const useWebRTC = (socket, partnerId) => {
     useEffect(() => {
         if (!socket) return;
 
-        socket.onOffer((data) => {
+        const handleIncomingOffer = (data) => {
             handleOffer(data.offer);
-        });
+        };
 
-        socket.onAnswer((data) => {
+        const handleIncomingAnswer = (data) => {
             handleAnswer(data.answer);
-        });
+        };
 
-        socket.onIceCandidate((data) => {
+        const handleIncomingIceCandidate = (data) => {
             handleIceCandidate(data.candidate);
-        });
+        };
+
+        socket.onOffer(handleIncomingOffer);
+        socket.onAnswer(handleIncomingAnswer);
+        socket.onIceCandidate(handleIncomingIceCandidate);
 
         return () => {
+            socket.offOffer?.(handleIncomingOffer);
+            socket.offAnswer?.(handleIncomingAnswer);
+            socket.offIceCandidate?.(handleIncomingIceCandidate);
             endCall();
         };
-    }, [socket, handleOffer, handleAnswer, handleIceCandidate, endCall]);
+    }, [socket, handleOffer, handleAnswer, handleIceCandidate, endCall, partnerId]);
 
     return {
         createOffer,
