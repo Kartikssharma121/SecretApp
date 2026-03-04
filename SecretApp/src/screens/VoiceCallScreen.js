@@ -82,10 +82,14 @@ const VoiceCallScreen = ({ navigation, route }) => {
             setPartnerId(matchData.partnerId);
             setMatchId(matchData.matchId);
 
-            // Determine who creates the offer (user1 creates offer)
-            setTimeout(() => {
-                createOffer().catch(err => console.error('Create offer error:', err));
-            }, 1000);
+            // Determine who creates the offer using the backend flag to avoid glares
+            if (matchData.isInitiator) {
+                setTimeout(() => {
+                    createOffer().catch(err => console.error('Create offer error:', err));
+                }, 1000); // Small delay to let partner prepare
+            } else {
+                console.log('Waiting for partner to send offer...');
+            }
         }
     }, [matchData]);
 

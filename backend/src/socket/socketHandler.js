@@ -110,6 +110,7 @@ const initializeSocket = (io) => {
                         matchId: matchRecord._id,
                         partnerId: match.partnerId,
                         type,
+                        isInitiator: true, // The one who joined second initiates the WebRTC offer
                     });
 
                     if (partnerSocket) {
@@ -117,6 +118,7 @@ const initializeSocket = (io) => {
                             matchId: matchRecord._id,
                             partnerId: userId,
                             type,
+                            isInitiator: false, // The one waiting waits for the offer
                         });
                     }
                 } else {

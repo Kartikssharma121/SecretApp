@@ -14,6 +14,7 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import useSocket from '../hooks/useSocket';
 import { addMessage } from '../store/socketSlice';
+import { selectCurrentUser } from '../store/authSlice';
 
 const ChatScreen = ({ navigation, route }) => {
     const { preferences, type } = route.params;
@@ -22,6 +23,10 @@ const ChatScreen = ({ navigation, route }) => {
     const messages = useSelector((state) => state.socket.messages);
     const queueStatus = useSelector((state) => state.socket.queueStatus);
     const isSocketConnected = useSelector((state) => state.socket.isConnected);
+    const isPartnerTyping = useSelector((state) => state.socket.isPartnerTyping);
+
+    const user = useSelector(selectCurrentUser);
+    const userId = user?._id;
 
     // Safe navigation helper
     const safeGoBack = () => {

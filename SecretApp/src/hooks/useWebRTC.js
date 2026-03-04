@@ -94,6 +94,14 @@ export const useWebRTC = (socket, partnerId) => {
                 peerConnectionRef.current?.addTrack(track, stream);
             });
 
+            // If we are already in 'have-local-offer' we have a glare condition.
+            // React Native WebRTC handles this via perfect negotiation usually,
+            // but for simplicity we will just log and maybe rollback if needed.
+            if (peerConnectionRef.current?.signalingState !== 'stable') {
+                console.warn('Received offer but state is:', peerConnectionRef.current?.signalingState);
+                // Depending on app logic we could rollback or ignore
+            }
+
             // Set remote description
             await peerConnectionRef.current?.setRemoteDescription(
                 new RTCSessionDescription(offer)
@@ -111,19 +119,23 @@ export const useWebRTC = (socket, partnerId) => {
             return answer;
         } catch (error) {
             console.error('Error handling offer:', error);
-            throw error;
+            // Don't throw the error, it causes unhandled promise rejections
         }
     }, [initializePeerConnection, getLocalStream, socket, partnerId]);
 
     // Handle received answer
     const handleAnswer = useCallback(async (answer) => {
         try {
+            // Ignore answer if we aren't expecting one
+            if (peerConnectionRef.current?.signalingState === 'stable') {
+                console.warn('Received answer but we are already stable, ignoring');
+                return;
+            }
             await peerConnectionRef.current?.setRemoteDescription(
                 new RTCSessionDescription(answer)
             );
         } catch (error) {
             console.error('Error handling answer:', error);
-            throw error;
         }
     }, []);
 
