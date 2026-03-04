@@ -7,6 +7,24 @@ class MatchingService {
             call: [],
             chat: [],
         };
+        this.io = null; // set after socket server starts
+    }
+
+    setIO(io) {
+        this.io = io;
+    }
+
+    // Clear all stale sessions on server startup
+    async clearStaleSessions() {
+        try {
+            const deleted = await ActiveSession.deleteMany({
+                status: { $in: ['waiting', 'matched', 'in-call', 'in-chat'] },
+            });
+            console.log(`[MatchingService] Cleared ${deleted.deletedCount} stale sessions on startup`);
+            this.waitingQueues = { call: [], chat: [] };
+        } catch (error) {
+            console.error('clearStaleSessions error:', error);
+        }
     }
 
     // Add user to queue
@@ -82,6 +100,19 @@ class MatchingService {
                     userGender === potentialUserPreference;
 
                 if (currentMatch && potentialMatch) {
+                    // Verify partner socket is still alive before matching
+                    const partnerSocketLive =
+                        this.io && this.io.sockets.sockets.has(potential.socketId);
+
+                    if (!partnerSocketLive) {
+                        console.log(`[MatchingService] Skipping ghost entry for ${potential.userId} — socket ${potential.socketId} is gone`);
+                        // Remove stale ghost from queue and DB
+                        queue.splice(i, 1);
+                        await ActiveSession.deleteOne({ userId: potential.userId, status: 'waiting' });
+                        i--; // re-check this index
+                        continue;
+                    }
+
                     // Match found! Remove from queue
                     queue.splice(i, 1);
 

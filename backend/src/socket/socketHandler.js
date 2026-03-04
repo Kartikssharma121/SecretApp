@@ -33,6 +33,10 @@ const socketAuth = async (socket, next) => {
 };
 
 const initializeSocket = (io) => {
+    // Give matching service access to live socket map & clear stale sessions
+    matchingService.setIO(io);
+    matchingService.clearStaleSessions();
+
     // Socket authentication middleware
     io.use(socketAuth);
 
