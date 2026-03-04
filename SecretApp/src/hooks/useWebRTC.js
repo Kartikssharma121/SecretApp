@@ -1,241 +1,288 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices } from 'react-native-webrtc';
+import {
+    RTCPeerConnection,
+    RTCIceCandidate,
+    RTCSessionDescription,
+    mediaDevices,
+} from 'react-native-webrtc';
+
+/* ------------------ ICE CONFIG ------------------ */
+/* ⚠️ NEVER hardcode TURN credentials in frontend */
 
 const configuration = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-    ],
+        {
+            urls: process.env.TURN_URL,
+            username: process.env.TURN_USERNAME,
+            credential: process.env.TURN_PASSWORD,
+        },
+    ].filter(server => server.urls), // remove undefined
+    iceTransportPolicy: 'all',
 };
 
-export const useWebRTC = (socket, partnerId) => {
+export const useWebRTC = (socket, partnerId, isPolite) => {
     const peerConnectionRef = useRef(null);
     const localStreamRef = useRef(null);
+    const partnerRef = useRef(null);
+    const iceQueueRef = useRef([]);
+
+    const makingOfferRef = useRef(false);
+    const ignoreOfferRef = useRef(false);
+    const politeRef = useRef(isPolite);
+    const restartingIceRef = useRef(false);
+
     const [isMuted, setIsMuted] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
 
-    // Initialize peer connection
+    /* ------------------ Sync Refs ------------------ */
+
+    useEffect(() => {
+        partnerRef.current = partnerId;
+    }, [partnerId]);
+
+    useEffect(() => {
+        politeRef.current = isPolite;
+    }, [isPolite]);
+
+    /* ------------------ Peer Init ------------------ */
+
     const initializePeerConnection = useCallback(() => {
-        if (!peerConnectionRef.current) {
-            peerConnectionRef.current = new RTCPeerConnection(configuration);
+        if (peerConnectionRef.current) return;
 
-            // Handle ICE candidates
-            peerConnectionRef.current.onicecandidate = (event) => {
-                if (event.candidate && socket) {
-                    socket.sendIceCandidate(event.candidate, partnerId);
-                }
-            };
+        const pc = new RTCPeerConnection(configuration);
 
-            // Handle connection state change
-            peerConnectionRef.current.onconnectionstatechange = () => {
-                const state = peerConnectionRef.current?.connectionState;
-                console.log('Connection state:', state);
+        pc.onicecandidate = (event) => {
+            if (event.candidate && socket && partnerRef.current) {
+                socket.sendIceCandidate(event.candidate, partnerRef.current);
+            }
+        };
 
-                if (state === 'connected') {
+        pc.onconnectionstatechange = async () => {
+            console.log('Connection State:', pc.connectionState);
+
+            switch (pc.connectionState) {
+                case 'connected':
                     setIsConnected(true);
-                }
+                    restartingIceRef.current = false;
+                    break;
 
-                if (state === 'failed' || state === 'disconnected') {
-                    console.log('Connection lost. Ending call.');
-                    endCall();
-                }
+                case 'failed':
+                    if (!restartingIceRef.current) {
+                        restartingIceRef.current = true;
+                        try {
+                            console.log('Restarting ICE...');
+                            await pc.restartIce();
+                        } catch (err) {
+                            console.log('ICE restart failed:', err);
+                        }
+                    }
+                    break;
 
-                if (state === 'closed') {
+                case 'disconnected':
+                case 'closed':
                     setIsConnected(false);
-                }
-            };
+                    break;
+            }
+        };
 
-            // Handle ICE connection state change
-            peerConnectionRef.current.oniceconnectionstatechange = () => {
-                const state = peerConnectionRef.current?.iceConnectionState;
-                console.log('ICE connection state:', state);
+        pc.ontrack = (event) => {
+            console.log('Remote track received');
+        };
 
-                if (state === 'failed') {
-                    console.log('ICE failed -> ending call');
-                    endCall();
-                }
-            };
+        peerConnectionRef.current = pc;
+    }, [socket]);
 
-            // Handle remote track
-            peerConnectionRef.current.ontrack = (event) => {
-                console.log('Remote track received');
-                // For audio-only, we don't necessarily need to attach to a component, 
-                // but we could attach to a hidden <RTCView> if needed for some platforms.
-            };
-        }
-    }, [socket, partnerId, endCall]);
+    /* ------------------ Local Media ------------------ */
 
-    // Get local audio stream
     const getLocalStream = useCallback(async () => {
-        try {
-            const stream = await mediaDevices.getUserMedia({
-                audio: true,
-                video: false,
-            });
-            localStreamRef.current = stream;
-            return stream;
-        } catch (error) {
-            console.error('Error getting local stream:', error);
-            throw error;
-        }
+        if (localStreamRef.current) return localStreamRef.current;
+
+        const stream = await mediaDevices.getUserMedia({
+            audio: true,
+            video: false,
+        });
+
+        localStreamRef.current = stream;
+        return stream;
     }, []);
 
-    // Create and send offer
+    const addLocalTracks = useCallback(async () => {
+        const pc = peerConnectionRef.current;
+        if (!pc) return;
+
+        const stream = await getLocalStream();
+
+        if (pc.getSenders().length === 0) {
+            stream.getTracks().forEach(track => {
+                pc.addTrack(track, stream);
+            });
+        }
+    }, [getLocalStream]);
+
+    /* ------------------ Create Offer ------------------ */
+
     const createOffer = useCallback(async () => {
+        if (!partnerRef.current) return;
+
+        initializePeerConnection();
+        await addLocalTracks();
+
+        const pc = peerConnectionRef.current;
+
         try {
-            initializePeerConnection();
-            const stream = await getLocalStream();
+            makingOfferRef.current = true;
 
-            // Add local stream to peer connection
-            stream.getTracks().forEach((track) => {
-                peerConnectionRef.current?.addTrack(track, stream);
-            });
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
 
-            // Create offer
-            const offer = await peerConnectionRef.current?.createOffer();
-            await peerConnectionRef.current?.setLocalDescription(offer);
-
-            // Send offer to partner
-            if (socket) {
-                socket.sendOffer(offer, partnerId);
-            }
-
-            return offer;
-        } catch (error) {
-            console.error('Error creating offer:', error);
-            throw error;
+            socket.sendOffer(pc.localDescription, partnerRef.current);
+        } catch (err) {
+            console.log('Offer error:', err);
+        } finally {
+            makingOfferRef.current = false;
         }
-    }, [initializePeerConnection, getLocalStream, socket, partnerId]);
+    }, [initializePeerConnection, addLocalTracks, socket]);
 
-    // Handle received offer
-    const handleOffer = useCallback(async (offer) => {
-        try {
+    /* ------------------ Handle Offer ------------------ */
+
+    const handleOffer = useCallback(
+        async (offer) => {
             initializePeerConnection();
-            const stream = await getLocalStream();
+            await addLocalTracks();
 
-            // Add local stream to peer connection
-            stream.getTracks().forEach((track) => {
-                peerConnectionRef.current?.addTrack(track, stream);
-            });
+            const pc = peerConnectionRef.current;
 
-            // If we are already in 'have-local-offer' we have a glare condition.
-            // React Native WebRTC handles this via perfect negotiation usually,
-            // but for simplicity we will just log and maybe rollback if needed.
-            if (peerConnectionRef.current?.signalingState !== 'stable') {
-                console.warn('Received offer but state is:', peerConnectionRef.current?.signalingState);
-                // Depending on app logic we could rollback or ignore
-            }
+            const offerCollision =
+                makingOfferRef.current || pc.signalingState !== 'stable';
 
-            // Set remote description
-            await peerConnectionRef.current?.setRemoteDescription(
-                new RTCSessionDescription(offer)
-            );
+            ignoreOfferRef.current =
+                !politeRef.current && offerCollision;
 
-            // Create answer
-            const answer = await peerConnectionRef.current?.createAnswer();
-            await peerConnectionRef.current?.setLocalDescription(answer);
-
-            // Send answer to partner
-            if (socket) {
-                socket.sendAnswer(answer, partnerId);
-            }
-
-            return answer;
-        } catch (error) {
-            console.error('Error handling offer:', error);
-            // Don't throw the error, it causes unhandled promise rejections
-        }
-    }, [initializePeerConnection, getLocalStream, socket, partnerId]);
-
-    // Handle received answer
-    const handleAnswer = useCallback(async (answer) => {
-        try {
-            // Ignore answer if we aren't expecting one
-            if (peerConnectionRef.current?.signalingState === 'stable') {
-                console.warn('Received answer but we are already stable, ignoring');
+            if (ignoreOfferRef.current) {
+                console.log('Ignoring offer (glare)');
                 return;
             }
-            await peerConnectionRef.current?.setRemoteDescription(
-                new RTCSessionDescription(answer)
-            );
-        } catch (error) {
-            console.error('Error handling answer:', error);
-        }
-    }, []);
 
-    // Handle received ICE candidate
-    const handleIceCandidate = useCallback(async (candidate) => {
-        try {
-            await peerConnectionRef.current?.addIceCandidate(
-                new RTCIceCandidate(candidate)
-            );
-        } catch (error) {
-            console.error('Error handling ICE candidate:', error);
-        }
-    }, []);
+            try {
+                if (offerCollision && politeRef.current) {
+                    await pc.setLocalDescription({ type: 'rollback' });
+                }
 
-    // Toggle mute
-    const toggleMute = useCallback(() => {
-        if (localStreamRef.current) {
-            const audioTrack = localStreamRef.current.getAudioTracks()[0];
-            if (audioTrack) {
-                audioTrack.enabled = !audioTrack.enabled;
-                setIsMuted(!audioTrack.enabled);
+                await pc.setRemoteDescription(
+                    new RTCSessionDescription(offer)
+                );
+
+                // Flush ICE queue
+                while (iceQueueRef.current.length) {
+                    await pc.addIceCandidate(iceQueueRef.current.shift());
+                }
+
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+
+                socket.sendAnswer(pc.localDescription, partnerRef.current);
+            } catch (err) {
+                console.log('Offer handling error:', err);
             }
+        },
+        [initializePeerConnection, addLocalTracks, socket]
+    );
+
+    /* ------------------ Handle Answer ------------------ */
+
+    const handleAnswer = useCallback(async (answer) => {
+        const pc = peerConnectionRef.current;
+        if (!pc) return;
+
+        try {
+            if (pc.signalingState === 'have-local-offer') {
+                await pc.setRemoteDescription(
+                    new RTCSessionDescription(answer)
+                );
+
+                while (iceQueueRef.current.length) {
+                    await pc.addIceCandidate(iceQueueRef.current.shift());
+                }
+            }
+        } catch (err) {
+            console.log('Answer error:', err);
         }
     }, []);
 
-    // End call
+    /* ------------------ ICE Handling ------------------ */
+
+    const handleIceCandidate = useCallback(async (candidate) => {
+        const pc = peerConnectionRef.current;
+        if (!pc) return;
+
+        const ice = new RTCIceCandidate(candidate);
+
+        try {
+            if (pc.remoteDescription) {
+                await pc.addIceCandidate(ice);
+            } else {
+                iceQueueRef.current.push(ice);
+            }
+        } catch (err) {
+            console.log('ICE error:', err);
+        }
+    }, []);
+
+    /* ------------------ Controls ------------------ */
+
+    const toggleMute = useCallback(() => {
+        if (!localStreamRef.current) return;
+
+        const audioTrack =
+            localStreamRef.current.getAudioTracks()[0];
+
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            setIsMuted(!audioTrack.enabled);
+        }
+    }, []);
+
     const endCall = useCallback(() => {
-        // Stop local stream
         if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach((track) => track.stop());
+            localStreamRef.current.getTracks().forEach(t => t.stop());
             localStreamRef.current = null;
         }
 
-        // Close peer connection
         if (peerConnectionRef.current) {
             peerConnectionRef.current.close();
             peerConnectionRef.current = null;
         }
 
+        iceQueueRef.current = [];
         setIsConnected(false);
         setIsMuted(false);
     }, []);
 
-    // Setup socket listeners
+    /* ------------------ Socket Listeners ------------------ */
+
     useEffect(() => {
         if (!socket) return;
 
-        const handleIncomingOffer = (data) => {
-            handleOffer(data.offer);
-        };
-
-        const handleIncomingAnswer = (data) => {
-            handleAnswer(data.answer);
-        };
-
-        const handleIncomingIceCandidate = (data) => {
+        const offerHandler = data => handleOffer(data.offer);
+        const answerHandler = data => handleAnswer(data.answer);
+        const iceHandler = data =>
             handleIceCandidate(data.candidate);
-        };
 
-        socket.onOffer(handleIncomingOffer);
-        socket.onAnswer(handleIncomingAnswer);
-        socket.onIceCandidate(handleIncomingIceCandidate);
+        socket.onOffer(offerHandler);
+        socket.onAnswer(answerHandler);
+        socket.onIceCandidate(iceHandler);
 
         return () => {
-            socket.offOffer?.(handleIncomingOffer);
-            socket.offAnswer?.(handleIncomingAnswer);
-            socket.offIceCandidate?.(handleIncomingIceCandidate);
+            socket.offOffer?.(offerHandler);
+            socket.offAnswer?.(answerHandler);
+            socket.offIceCandidate?.(iceHandler);
             endCall();
         };
-    }, [socket, handleOffer, handleAnswer, handleIceCandidate, endCall, partnerId]);
+    }, [socket, handleOffer, handleAnswer, handleIceCandidate, endCall]);
 
     return {
         createOffer,
-        handleOffer,
-        handleAnswer,
-        handleIceCandidate,
         toggleMute,
         endCall,
         isMuted,

@@ -35,7 +35,8 @@ const VoiceCallScreen = ({ navigation, route }) => {
 
     const { createOffer, toggleMute, endCall, isMuted, isConnected } = useWebRTC(
         socket,
-        partnerId
+        partnerId,
+        matchData ? !matchData.isInitiator : false
     );
 
     // Join queue when socket is connected
