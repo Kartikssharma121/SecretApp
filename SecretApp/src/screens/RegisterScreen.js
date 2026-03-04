@@ -7,11 +7,15 @@ import {
     StyleSheet,
     Alert,
     ActivityIndicator,
+    StatusBar,
+    ScrollView,
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setCredentials } from '../store/authSlice';
 import authService from '../services/authService';
+import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const RegisterScreen = ({ navigation }) => {
     const [name, setName] = useState('');
@@ -54,156 +58,198 @@ const RegisterScreen = ({ navigation }) => {
     };
 
     return (
-        <View style={styles.container}>
-            <View style={styles.content}>
-                <Text style={styles.title}>Create Account</Text>
-                <Text style={styles.subtitle}>Join Secret Call</Text>
+        <LinearGradient
+            colors={['#241b2f', '#120f17']}
+            style={styles.gradientContainer}
+        >
+            <SafeAreaView style={styles.container}>
+                <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="Name"
-                    placeholderTextColor="#999"
-                    value={name}
-                    onChangeText={setName}
-                />
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.headerContainer}>
+                        <Text style={styles.emoji}>✨</Text>
+                        <Text style={styles.title}>Create Account</Text>
+                        <Text style={styles.subtitle}>Join Secret Call and stay anonymous</Text>
+                    </View>
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    placeholderTextColor="#999"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                />
+                    <View style={styles.formContainer}>
+                        <View style={styles.inputWrapper}>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Name"
+                                placeholderTextColor="#8a8a9e"
+                                value={name}
+                                onChangeText={setName}
+                            />
+                        </View>
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="Password (min 6 characters)"
-                    placeholderTextColor="#999"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                />
+                        <View style={styles.inputWrapper}>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Email"
+                                placeholderTextColor="#8a8a9e"
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                            />
+                        </View>
 
-                <View style={styles.genderContainer}>
-                    <Text style={styles.label}>Gender:</Text>
-                    <View style={styles.genderButtons}>
+                        <View style={styles.inputWrapper}>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Password (min 6 characters)"
+                                placeholderTextColor="#8a8a9e"
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry
+                            />
+                        </View>
+
+                        <View style={styles.genderContainer}>
+                            <Text style={styles.label}>Gender</Text>
+                            <View style={styles.genderButtons}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.genderButton,
+                                        gender === 'Male' && styles.genderButtonActive,
+                                    ]}
+                                    onPress={() => setGender('Male')}>
+                                    <Text
+                                        style={[
+                                            styles.genderButtonText,
+                                            gender === 'Male' && styles.genderButtonTextActive,
+                                        ]}>
+                                        Male
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[
+                                        styles.genderButton,
+                                        gender === 'Female' && styles.genderButtonActive,
+                                    ]}
+                                    onPress={() => setGender('Female')}>
+                                    <Text
+                                        style={[
+                                            styles.genderButtonText,
+                                            gender === 'Female' && styles.genderButtonTextActive,
+                                        ]}>
+                                        Female
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
                         <TouchableOpacity
-                            style={[
-                                styles.genderButton,
-                                gender === 'Male' && styles.genderButtonActive,
-                            ]}
-                            onPress={() => setGender('Male')}>
-                            <Text
-                                style={[
-                                    styles.genderButtonText,
-                                    gender === 'Male' && styles.genderButtonTextActive,
-                                ]}>
-                                Male
-                            </Text>
+                            style={[styles.button, loading && styles.buttonDisabled]}
+                            onPress={handleRegister}
+                            disabled={loading}>
+                            {loading ? (
+                                <ActivityIndicator color="#1a1a2e" />
+                            ) : (
+                                <Text style={styles.buttonText}>Register</Text>
+                            )}
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={[
-                                styles.genderButton,
-                                gender === 'Female' && styles.genderButtonActive,
-                            ]}
-                            onPress={() => setGender('Female')}>
-                            <Text
-                                style={[
-                                    styles.genderButtonText,
-                                    gender === 'Female' && styles.genderButtonTextActive,
-                                ]}>
-                                Female
+                            onPress={() => navigation.navigate('Login')}
+                            style={styles.linkButton}>
+                            <Text style={styles.linkText}>
+                                Already have an account? <Text style={styles.linkBold}>Login</Text>
                             </Text>
                         </TouchableOpacity>
                     </View>
-                </View>
-
-                <TouchableOpacity
-                    style={[styles.button, loading && styles.buttonDisabled]}
-                    onPress={handleRegister}
-                    disabled={loading}>
-                    {loading ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <Text style={styles.buttonText}>Register</Text>
-                    )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => navigation.navigate('Login')}
-                    style={styles.linkButton}>
-                    <Text style={styles.linkText}>
-                        Already have an account? <Text style={styles.linkBold}>Login</Text>
-                    </Text>
-                </TouchableOpacity>
-            </View>
-        </View>
+                </ScrollView>
+            </SafeAreaView>
+        </LinearGradient>
     );
 };
 
 const styles = StyleSheet.create({
+    gradientContainer: {
+        flex: 1,
+    },
     container: {
         flex: 1,
-        backgroundColor: '#1a1a2e',
     },
-    content: {
-        flex: 1,
+    scrollContent: {
+        flexGrow: 1,
         justifyContent: 'center',
-        paddingHorizontal: 30,
+        paddingHorizontal: 24,
+        paddingVertical: 20,
+    },
+    headerContainer: {
+        alignItems: 'center',
+        marginBottom: 32,
+    },
+    emoji: {
+        fontSize: 50,
+        marginBottom: 10,
     },
     title: {
-        fontSize: 36,
+        fontSize: 32,
         fontWeight: 'bold',
         color: '#fff',
-        marginBottom: 10,
+        marginBottom: 8,
         textAlign: 'center',
+        letterSpacing: 0.5,
     },
     subtitle: {
-        fontSize: 16,
-        color: '#999',
-        marginBottom: 40,
+        fontSize: 15,
+        color: '#a0a0b8',
         textAlign: 'center',
+        lineHeight: 22,
+    },
+    formContainer: {
+        width: '100%',
+    },
+    inputWrapper: {
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 16,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        overflow: 'hidden',
     },
     input: {
-        backgroundColor: '#16213e',
-        borderRadius: 10,
-        padding: 15,
-        marginBottom: 15,
+        padding: 16,
         fontSize: 16,
         color: '#fff',
-        borderWidth: 1,
-        borderColor: '#0f3460',
     },
     genderContainer: {
-        marginBottom: 15,
+        marginBottom: 24,
+        marginTop: 8,
     },
     label: {
-        color: '#fff',
-        fontSize: 16,
+        color: '#a0a0b8',
+        fontSize: 14,
         marginBottom: 10,
+        marginLeft: 4,
+        fontWeight: '500',
     },
     genderButtons: {
         flexDirection: 'row',
-        gap: 10,
+        gap: 12,
     },
     genderButton: {
         flex: 1,
-        backgroundColor: '#16213e',
-        borderRadius: 10,
-        padding: 15,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 16,
+        padding: 16,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#0f3460',
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     genderButtonActive: {
-        backgroundColor: '#e94560',
-        borderColor: '#e94560',
+        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+        borderColor: 'rgba(255, 255, 255, 0.3)',
     },
     genderButtonText: {
-        color: '#999',
+        color: '#8a8a9e',
         fontSize: 16,
         fontWeight: '600',
     },
@@ -211,30 +257,36 @@ const styles = StyleSheet.create({
         color: '#fff',
     },
     button: {
-        backgroundColor: '#e94560',
-        borderRadius: 10,
-        padding: 15,
-        marginTop: 10,
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 16,
+        marginTop: 8,
         alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+        elevation: 8,
     },
     buttonDisabled: {
-        opacity: 0.6,
+        opacity: 0.7,
     },
     buttonText: {
-        color: '#fff',
+        color: '#1a1a2e',
         fontSize: 18,
         fontWeight: 'bold',
+        letterSpacing: 0.5,
     },
     linkButton: {
-        marginTop: 20,
+        marginTop: 24,
         alignItems: 'center',
     },
     linkText: {
-        color: '#999',
-        fontSize: 14,
+        color: '#a0a0b8',
+        fontSize: 15,
     },
     linkBold: {
-        color: '#e94560',
+        color: '#fff',
         fontWeight: 'bold',
     },
 });

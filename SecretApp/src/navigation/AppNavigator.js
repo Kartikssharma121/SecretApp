@@ -7,6 +7,7 @@ import { setCredentials } from '../store/authSlice';
 import { navigationRef } from './NavigationService';
 
 import SplashScreen from '../screens/SplashScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -18,7 +19,7 @@ const Stack = createStackNavigator();
 const AppNavigator = () => {
     const dispatch = useDispatch();
     const [isLoading, setIsLoading] = useState(true);
-    const [initialRoute, setInitialRoute] = useState('Login');
+    const [initialRoute, setInitialRoute] = useState('Onboarding');
 
     useEffect(() => {
         checkAuth();
@@ -26,6 +27,7 @@ const AppNavigator = () => {
 
     const checkAuth = async () => {
         try {
+            const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
             const token = await AsyncStorage.getItem('token');
             const refreshToken = await AsyncStorage.getItem('refreshToken');
             const userString = await AsyncStorage.getItem('user');
@@ -34,9 +36,14 @@ const AppNavigator = () => {
                 const user = JSON.parse(userString);
                 dispatch(setCredentials({ user, token, refreshToken }));
                 setInitialRoute('Home');
+            } else if (hasSeenOnboarding === 'true') {
+                setInitialRoute('Login');
+            } else {
+                setInitialRoute('Onboarding');
             }
         } catch (error) {
             console.error('Auth check error:', error);
+            setInitialRoute('Login');
         } finally {
             setIsLoading(false);
         }
@@ -54,6 +61,7 @@ const AppNavigator = () => {
                     headerShown: false,
                     cardStyle: { backgroundColor: '#1a1a2e' },
                 }}>
+                <Stack.Screen name="Onboarding" component={OnboardingScreen} />
                 <Stack.Screen name="Login" component={LoginScreen} />
                 <Stack.Screen name="Register" component={RegisterScreen} />
                 <Stack.Screen name="Home" component={HomeScreen} />

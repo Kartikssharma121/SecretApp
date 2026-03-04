@@ -4,40 +4,49 @@ import {
     Text,
     TouchableOpacity,
     StyleSheet,
-    Alert,
     Modal,
+    StatusBar,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logout } from '../store/authSlice';
 import authService from '../services/authService';
+import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import CustomAlert from '../components/CustomAlert';
 
 const HomeScreen = ({ navigation }) => {
     const dispatch = useDispatch();
     const user = useSelector((state) => state.auth.user);
     const [showFilterModal, setShowFilterModal] = useState(false);
     const [selectedType, setSelectedType] = useState(null);
+    const [alertConfig, setAlertConfig] = useState({ visible: false });
 
-    const handleLogout = async () => {
-        Alert.alert('Logout', 'Are you sure you want to logout?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Logout',
-                style: 'destructive',
-                onPress: async () => {
-                    try {
-                        await authService.logout();
-                    } catch (error) {
-                        console.error('Logout error:', error);
-                    }
-                    await AsyncStorage.removeItem('token');
-                    await AsyncStorage.removeItem('refreshToken');
-                    await AsyncStorage.removeItem('user');
-                    dispatch(logout());
-                    navigation.replace('Login');
+    const showAlert = (title, message, buttons) =>
+        setAlertConfig({ visible: true, title, message, buttons });
+    const hideAlert = () => setAlertConfig({ visible: false });
+
+    const handleLogout = () => {
+        showAlert(
+            'Logout',
+            'Are you sure you want to logout?',
+            [
+                { text: 'Cancel', style: 'cancel', onPress: hideAlert },
+                {
+                    text: 'Logout',
+                    style: 'destructive',
+                    onPress: async () => {
+                        hideAlert();
+                        try { await authService.logout(); } catch (e) { console.error(e); }
+                        await AsyncStorage.removeItem('token');
+                        await AsyncStorage.removeItem('refreshToken');
+                        await AsyncStorage.removeItem('user');
+                        dispatch(logout());
+                        navigation.replace('Login');
+                    },
                 },
-            },
-        ]);
+            ]
+        );
     };
 
     const handleOptionPress = (type) => {
@@ -54,45 +63,100 @@ const HomeScreen = ({ navigation }) => {
         }
     };
 
+    const firstName = user?.name?.split(' ')[0] || 'User';
+
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.greeting}>Hello, {user?.name}!</Text>
-                <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-                    <Text style={styles.logoutText}>Logout</Text>
-                </TouchableOpacity>
-            </View>
+        <LinearGradient colors={['#241b2f', '#120f17']} style={styles.gradientContainer}>
+            <SafeAreaView style={styles.container}>
+                <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
 
-            <View style={styles.content}>
-                <Text style={styles.title}>What would you like to do?</Text>
+                {/* Header */}
+                <View style={styles.header}>
+                    <View>
+                        <Text style={styles.greetingSmall}>Welcome,</Text>
+                        <Text style={styles.greeting}>{firstName}</Text>
+                    </View>
+                    <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+                        <Text style={styles.logoutText}>Logout</Text>
+                    </TouchableOpacity>
+                </View>
 
-                <TouchableOpacity
-                    style={[styles.card, styles.callCard]}
-                    onPress={() => handleOptionPress('call')}>
-                    <Text style={styles.cardIcon}>📞</Text>
-                    <Text style={styles.cardTitle}>Secret Voice Call</Text>
-                    <Text style={styles.cardDescription}>
-                        Connect with a random stranger for an anonymous voice call
-                    </Text>
-                </TouchableOpacity>
+                {/* Hero Section */}
+                <View style={styles.heroSection}>
+                    <Text style={styles.heroEmoji}>🔥</Text>
+                    <Text style={styles.heroTitle}>Start a Secret Session</Text>
+                    <Text style={styles.heroSubtitle}>Connect anonymously, talk freely</Text>
+                </View>
 
-                <TouchableOpacity
-                    style={[styles.card, styles.chatCard]}
-                    onPress={() => handleOptionPress('chat')}>
-                    <Text style={styles.cardIcon}>💬</Text>
-                    <Text style={styles.cardTitle}>Secret Chat</Text>
-                    <Text style={styles.cardDescription}>
-                        Chat with a random stranger anonymously
-                    </Text>
-                </TouchableOpacity>
-            </View>
+                {/* Action Cards */}
+                <View style={styles.cardsContainer}>
+                    <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => handleOptionPress('call')}
+                    >
+                        <LinearGradient
+                            colors={['rgba(180, 80, 140, 0.35)', 'rgba(100, 40, 120, 0.2)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.card}
+                        >
+                            <View style={styles.cardIconContainer}>
+                                <Text style={styles.cardIcon}>📞</Text>
+                            </View>
+                            <View style={styles.cardText}>
+                                <Text style={styles.cardTitle}>Secret Voice Call</Text>
+                                <Text style={styles.cardDescription}>
+                                    Anonymous voice call with a random stranger
+                                </Text>
+                            </View>
+                            <Text style={styles.cardArrow}>›</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
 
-            <FilterModal
-                visible={showFilterModal}
-                onClose={() => setShowFilterModal(false)}
-                onStart={handleStartSession}
-            />
-        </View>
+                    <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => handleOptionPress('chat')}
+                    >
+                        <LinearGradient
+                            colors={['rgba(80, 100, 200, 0.35)', 'rgba(40, 60, 150, 0.2)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.card}
+                        >
+                            <View style={styles.cardIconContainer}>
+                                <Text style={styles.cardIcon}>💬</Text>
+                            </View>
+                            <View style={styles.cardText}>
+                                <Text style={styles.cardTitle}>Secret Chat</Text>
+                                <Text style={styles.cardDescription}>
+                                    Anonymous text chat with a random stranger
+                                </Text>
+                            </View>
+                            <Text style={styles.cardArrow}>›</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Stats / Footer Note */}
+                <View style={styles.footer}>
+                    <Text style={styles.footerText}>🌍 Connect with strangers. Stay anonymous.</Text>
+                </View>
+
+                <FilterModal
+                    visible={showFilterModal}
+                    onClose={() => setShowFilterModal(false)}
+                    onStart={handleStartSession}
+                />
+
+                <CustomAlert
+                    visible={alertConfig.visible}
+                    title={alertConfig.title}
+                    message={alertConfig.message}
+                    buttons={alertConfig.buttons || []}
+                    onClose={hideAlert}
+                />
+            </SafeAreaView>
+        </LinearGradient>
     );
 };
 
@@ -110,181 +174,207 @@ const FilterModal = ({ visible, onClose, onStart }) => {
             animationType="slide"
             onRequestClose={onClose}>
             <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
+                <LinearGradient
+                    colors={['#2e1f42', '#1a1028']}
+                    style={styles.modalContent}
+                >
                     <Text style={styles.modalTitle}>Choose Preferences</Text>
-
-                    <Text style={styles.modalLabel}>Gender Preference:</Text>
+                    <Text style={styles.modalLabel}>Gender Preference</Text>
 
                     <View style={styles.genderButtons}>
-                        <TouchableOpacity
-                            style={[
-                                styles.genderButton,
-                                genderPreference === 'Male' && styles.genderButtonActive,
-                            ]}
-                            onPress={() => setGenderPreference('Male')}>
-                            <Text
+                        {['Male', 'Female', 'Any'].map((option) => (
+                            <TouchableOpacity
+                                key={option}
                                 style={[
-                                    styles.genderButtonText,
-                                    genderPreference === 'Male' && styles.genderButtonTextActive,
-                                ]}>
-                                Male
-                            </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.genderButton,
-                                genderPreference === 'Female' && styles.genderButtonActive,
-                            ]}
-                            onPress={() => setGenderPreference('Female')}>
-                            <Text
-                                style={[
-                                    styles.genderButtonText,
-                                    genderPreference === 'Female' && styles.genderButtonTextActive,
-                                ]}>
-                                Female
-                            </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.genderButton,
-                                genderPreference === 'Any' && styles.genderButtonActive,
-                            ]}
-                            onPress={() => setGenderPreference('Any')}>
-                            <Text
-                                style={[
-                                    styles.genderButtonText,
-                                    genderPreference === 'Any' && styles.genderButtonTextActive,
-                                ]}>
-                                Any
-                            </Text>
-                        </TouchableOpacity>
+                                    styles.genderButton,
+                                    genderPreference === option && styles.genderButtonActive,
+                                ]}
+                                onPress={() => setGenderPreference(option)}>
+                                <Text
+                                    style={[
+                                        styles.genderButtonText,
+                                        genderPreference === option && styles.genderButtonTextActive,
+                                    ]}>
+                                    {option}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
                     </View>
 
                     <TouchableOpacity style={styles.startButton} onPress={handleStart}>
-                        <Text style={styles.startButtonText}>Start</Text>
+                        <Text style={styles.startButtonText}>Start Session</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
                         <Text style={styles.cancelButtonText}>Cancel</Text>
                     </TouchableOpacity>
-                </View>
+                </LinearGradient>
             </View>
         </Modal>
     );
 };
 
 const styles = StyleSheet.create({
+    gradientContainer: {
+        flex: 1,
+    },
     container: {
         flex: 1,
-        backgroundColor: '#1a1a2e',
+        paddingHorizontal: 20,
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 20,
-        paddingTop: 50,
+        paddingTop: 16,
+        paddingBottom: 8,
+    },
+    greetingSmall: {
+        fontSize: 13,
+        color: '#a0a0b8',
+        marginBottom: 2,
     },
     greeting: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    logoutButton: {
-        backgroundColor: '#16213e',
-        paddingHorizontal: 15,
-        paddingVertical: 8,
-        borderRadius: 8,
-    },
-    logoutText: {
-        color: '#e94560',
-        fontWeight: '600',
-    },
-    content: {
-        flex: 1,
-        paddingHorizontal: 20,
-        justifyContent: 'center',
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 30,
-        textAlign: 'center',
-    },
-    card: {
-        borderRadius: 20,
-        padding: 30,
-        marginBottom: 20,
-        alignItems: 'center',
-    },
-    callCard: {
-        backgroundColor: '#e94560',
-    },
-    chatCard: {
-        backgroundColor: '#0f3460',
-    },
-    cardIcon: {
-        fontSize: 50,
-        marginBottom: 15,
-    },
-    cardTitle: {
         fontSize: 22,
         fontWeight: 'bold',
         color: '#fff',
-        marginBottom: 10,
+        letterSpacing: 0.3,
     },
-    cardDescription: {
-        fontSize: 14,
-        color: '#fff',
-        textAlign: 'center',
-        opacity: 0.9,
+    logoutButton: {
+        backgroundColor: 'rgba(255,255,255,0.07)',
+        paddingHorizontal: 16,
+        paddingVertical: 9,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        justifyContent: 'center',
-        paddingHorizontal: 20,
+    logoutText: {
+        color: '#d0a0c8',
+        fontWeight: '600',
+        fontSize: 13,
     },
-    modalContent: {
-        backgroundColor: '#16213e',
-        borderRadius: 20,
-        padding: 30,
+    heroSection: {
+        alignItems: 'center',
+        paddingVertical: 36,
     },
-    modalTitle: {
-        fontSize: 24,
+    heroEmoji: {
+        fontSize: 56,
+        marginBottom: 12,
+    },
+    heroTitle: {
+        fontSize: 26,
         fontWeight: 'bold',
         color: '#fff',
-        marginBottom: 20,
+        marginBottom: 8,
+        letterSpacing: 0.3,
+        textAlign: 'center',
+    },
+    heroSubtitle: {
+        fontSize: 15,
+        color: '#a0a0b8',
+        textAlign: 'center',
+    },
+    cardsContainer: {
+        flex: 1,
+        gap: 16,
+    },
+    card: {
+        borderRadius: 20,
+        padding: 22,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    cardIconContainer: {
+        width: 58,
+        height: 58,
+        backgroundColor: 'rgba(255,255,255,0.07)',
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    cardIcon: {
+        fontSize: 28,
+    },
+    cardText: {
+        flex: 1,
+    },
+    cardTitle: {
+        fontSize: 17,
+        fontWeight: 'bold',
+        color: '#fff',
+        marginBottom: 4,
+    },
+    cardDescription: {
+        fontSize: 13,
+        color: '#a0a0b8',
+        lineHeight: 19,
+    },
+    cardArrow: {
+        fontSize: 28,
+        color: 'rgba(255,255,255,0.3)',
+        fontWeight: '300',
+        marginLeft: 8,
+    },
+    footer: {
+        paddingVertical: 20,
+        alignItems: 'center',
+    },
+    footerText: {
+        color: '#6a6a8a',
+        fontSize: 13,
+    },
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.75)',
+        justifyContent: 'flex-end',
+        paddingHorizontal: 0,
+    },
+    modalContent: {
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        padding: 28,
+        paddingBottom: 40,
+        borderTopWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: '#fff',
+        marginBottom: 4,
         textAlign: 'center',
     },
     modalLabel: {
-        fontSize: 16,
-        color: '#fff',
-        marginBottom: 15,
+        fontSize: 13,
+        color: '#a0a0b8',
+        marginTop: 4,
+        marginBottom: 20,
+        textAlign: 'center',
     },
     genderButtons: {
         flexDirection: 'row',
         gap: 10,
-        marginBottom: 30,
+        marginBottom: 28,
     },
     genderButton: {
         flex: 1,
-        backgroundColor: '#1a1a2e',
-        borderRadius: 10,
-        padding: 15,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 14,
+        padding: 14,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#0f3460',
+        borderColor: 'rgba(255,255,255,0.1)',
     },
     genderButtonActive: {
-        backgroundColor: '#e94560',
-        borderColor: '#e94560',
+        backgroundColor: 'rgba(255,255,255,0.18)',
+        borderColor: 'rgba(255,255,255,0.35)',
     },
     genderButtonText: {
-        color: '#999',
+        color: '#8a8a9e',
         fontSize: 14,
         fontWeight: '600',
     },
@@ -292,26 +382,34 @@ const styles = StyleSheet.create({
         color: '#fff',
     },
     startButton: {
-        backgroundColor: '#e94560',
-        borderRadius: 10,
-        padding: 15,
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 16,
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+        elevation: 8,
     },
     startButtonText: {
-        color: '#fff',
-        fontSize: 18,
+        color: '#1a1a2e',
+        fontSize: 17,
         fontWeight: 'bold',
+        letterSpacing: 0.5,
     },
     cancelButton: {
-        backgroundColor: '#1a1a2e',
-        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 16,
         padding: 15,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
     cancelButtonText: {
-        color: '#999',
-        fontSize: 16,
+        color: '#a0a0b8',
+        fontSize: 15,
     },
 });
 
