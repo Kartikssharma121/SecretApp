@@ -24,11 +24,27 @@ export const authService = {
     // Get current user
     getMe: async (token) => {
         try {
-            const response = await api.get('/auth/me', {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+            const response = await api.get('/auth/me'); // Token is added by interceptor now
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    // Refresh Token
+    refreshToken: async (refreshToken) => {
+        try {
+            const response = await api.post('/auth/refresh-token', { refreshToken });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    // Logout
+    logout: async () => {
+        try {
+            const response = await api.post('/auth/logout');
             return response.data;
         } catch (error) {
             throw error.response?.data || error.message;

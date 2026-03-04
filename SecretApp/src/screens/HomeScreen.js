@@ -10,6 +10,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logout } from '../store/authSlice';
+import authService from '../services/authService';
 
 const HomeScreen = ({ navigation }) => {
     const dispatch = useDispatch();
@@ -24,7 +25,13 @@ const HomeScreen = ({ navigation }) => {
                 text: 'Logout',
                 style: 'destructive',
                 onPress: async () => {
+                    try {
+                        await authService.logout();
+                    } catch (error) {
+                        console.error('Logout error:', error);
+                    }
                     await AsyncStorage.removeItem('token');
+                    await AsyncStorage.removeItem('refreshToken');
                     await AsyncStorage.removeItem('user');
                     dispatch(logout());
                     navigation.replace('Login');

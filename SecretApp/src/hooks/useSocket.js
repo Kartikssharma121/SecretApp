@@ -11,6 +11,7 @@ import {
     setQueueStatus,
 } from '../store/socketSlice';
 import { selectCurrentToken } from '../store/authSlice';
+import api from '../services/api';
 
 export const useSocket = () => {
     const dispatch = useDispatch();
@@ -41,8 +42,14 @@ export const useSocket = () => {
         });
 
         socket.on('connect_error', (error) => {
-            console.error('Socket connection error:', error);
+            console.error('Socket connection error:', error.message);
             dispatch(setConnected(false));
+
+            // If the connection failed due to auth, trigger a refresh via HTTP
+            if (error.message?.includes('Authentication err') || error.message?.includes('Invalid token')) {
+                console.log('Socket token expired. Triggering HTTP interceptor for silent refresh...');
+                api.get('/auth/me').catch(err => console.log('Silent token refresh via API failed:', err.message));
+            }
         });
 
         // Match found event

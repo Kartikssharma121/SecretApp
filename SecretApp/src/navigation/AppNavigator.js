@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setCredentials } from '../store/authSlice';
+import { navigationRef } from './NavigationService';
 
 import SplashScreen from '../screens/SplashScreen';
 import LoginScreen from '../screens/LoginScreen';
@@ -26,11 +27,12 @@ const AppNavigator = () => {
     const checkAuth = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
+            const refreshToken = await AsyncStorage.getItem('refreshToken');
             const userString = await AsyncStorage.getItem('user');
 
             if (token && userString) {
                 const user = JSON.parse(userString);
-                dispatch(setCredentials({ user, token }));
+                dispatch(setCredentials({ user, token, refreshToken }));
                 setInitialRoute('Home');
             }
         } catch (error) {
@@ -45,7 +47,7 @@ const AppNavigator = () => {
     }
 
     return (
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
             <Stack.Navigator
                 initialRouteName={initialRoute}
                 screenOptions={{

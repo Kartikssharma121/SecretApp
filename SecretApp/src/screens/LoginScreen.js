@@ -29,12 +29,13 @@ const LoginScreen = ({ navigation }) => {
         try {
             const data = await authService.login({ email, password });
 
-            // Save token to AsyncStorage
+            // Save tokens to AsyncStorage
             await AsyncStorage.setItem('token', data.token);
+            if (data.refreshToken) await AsyncStorage.setItem('refreshToken', data.refreshToken);
             await AsyncStorage.setItem('user', JSON.stringify(data));
 
             // Update Redux state
-            dispatch(setCredentials({ user: data, token: data.token }));
+            dispatch(setCredentials({ user: data, token: data.token, refreshToken: data.refreshToken }));
 
             // Navigate to Home
             navigation.replace('Home');
