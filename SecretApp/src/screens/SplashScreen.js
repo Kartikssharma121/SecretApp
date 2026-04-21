@@ -26,7 +26,7 @@ const SplashScreen = () => {
             </View>
 
             <View style={styles.textContainer}>
-                <Text style={styles.title}>Secret Call</Text>
+                <Text style={styles.title}>IGNYT</Text>
                 <Text style={styles.subtitle}>Anonymous Communication</Text>
                 <ActivityIndicator color="#fff" size="large" style={styles.loader} />
             </View>

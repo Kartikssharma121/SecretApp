@@ -60,7 +60,7 @@ const LoginScreen = ({ navigation }) => {
                 <View style={styles.content}>
                     <View style={styles.headerContainer}>
 
-                        <Text style={styles.title}>Secret Call</Text>
+                        <Text style={styles.title}>IGNYT</Text>
                         <Text style={styles.subtitle}>Welcome back, login to continue</Text>
                     </View>
 

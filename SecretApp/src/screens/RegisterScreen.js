@@ -72,7 +72,7 @@ const RegisterScreen = ({ navigation }) => {
                     <View style={styles.headerContainer}>
                         <Text style={styles.emoji}>✨</Text>
                         <Text style={styles.title}>Create Account</Text>
-                        <Text style={styles.subtitle}>Join Secret Call and stay anonymous</Text>
+                        <Text style={styles.subtitle}>Join IGNYT and stay anonymous</Text>
                     </View>
 
                     <View style={styles.formContainer}>

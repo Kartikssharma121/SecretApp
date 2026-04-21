@@ -38,7 +38,7 @@ const ForceUpdateModal = ({ visible }) => {
                     <Text style={styles.title}>Update Required</Text>
 
                     <Text style={styles.message}>
-                        A new version of Secret Call is available. Please update the app to continue using it.
+                        A new version of IGNYT is available. Please update the app to continue using it.
                     </Text>
 
                     <TouchableOpacity
