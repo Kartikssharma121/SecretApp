@@ -6,6 +6,8 @@ import {
     StyleSheet,
     Modal,
     StatusBar,
+    PermissionsAndroid,
+    Platform,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -54,10 +56,37 @@ const HomeScreen = ({ navigation }) => {
         setShowFilterModal(true);
     };
 
-    const handleStartSession = (preferences) => {
+    const handleStartSession = async (preferences) => {
         setShowFilterModal(false);
         if (selectedType === 'call') {
-            navigation.navigate('VoiceCall', { preferences, type: 'call' });
+            let hasPermission = true;
+            if (Platform.OS === 'android') {
+                try {
+                    const granted = await PermissionsAndroid.request(
+                        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+                        {
+                            title: 'Microphone Permission',
+                            message: 'SecretApp needs access to your microphone so you can make secret voice calls.',
+                            buttonNeutral: 'Ask Me Later',
+                            buttonNegative: 'Cancel',
+                            buttonPositive: 'OK',
+                        }
+                    );
+                    hasPermission = granted === PermissionsAndroid.RESULTS.GRANTED;
+                } catch (err) {
+                    console.warn(err);
+                    hasPermission = false;
+                }
+            }
+            if (hasPermission) {
+                navigation.navigate('VoiceCall', { preferences, type: 'call' });
+            } else {
+                showAlert(
+                    'Permission Required',
+                    'Microphone permission is required to start a voice call. Please enable it in your device settings.',
+                    [{ text: 'OK', onPress: hideAlert }]
+                );
+            }
         } else {
             navigation.navigate('Chat', { preferences, type: 'chat' });
         }

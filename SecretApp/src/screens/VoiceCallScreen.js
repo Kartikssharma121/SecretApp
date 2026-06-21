@@ -96,6 +96,7 @@ const VoiceCallScreen = ({ navigation, route }) => {
     // Start timer when WebRTC is connected
     useEffect(() => {
         if (isConnected) {
+            setCallDuration(0);
             callTimerRef.current = setInterval(() => {
                 setCallDuration((prev) => prev + 1);
             }, 1000);
@@ -213,7 +214,7 @@ const VoiceCallScreen = ({ navigation, route }) => {
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextAppState) => {
-            if (nextAppState !== 'active') {
+            if (nextAppState === 'background') {
                 endCall();
                 socket.disconnectPartner();
                 safeGoBack();

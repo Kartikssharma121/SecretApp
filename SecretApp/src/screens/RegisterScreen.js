@@ -9,6 +9,10 @@ import {
     ActivityIndicator,
     StatusBar,
     ScrollView,
+    KeyboardAvoidingView,
+    Platform,
+    TouchableWithoutFeedback,
+    Keyboard,
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -64,106 +68,112 @@ const RegisterScreen = ({ navigation }) => {
         >
             <SafeAreaView style={styles.container}>
                 <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
-
-                <ScrollView
-                    contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={false}
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.keyboardAvoidingView}
                 >
-                    <View style={styles.headerContainer}>
-                        <Text style={styles.emoji}>✨</Text>
-                        <Text style={styles.title}>Create Account</Text>
-                        <Text style={styles.subtitle}>Join IGNYT and stay anonymous</Text>
-                    </View>
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <ScrollView
+                            contentContainerStyle={styles.scrollContent}
+                            showsVerticalScrollIndicator={false}
+                        >
+                            <View style={styles.headerContainer}>
+                                <Text style={styles.emoji}>✨</Text>
+                                <Text style={styles.title}>Create Account</Text>
+                                <Text style={styles.subtitle}>Join IGNYT and stay anonymous</Text>
+                            </View>
 
-                    <View style={styles.formContainer}>
-                        <View style={styles.inputWrapper}>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Name"
-                                placeholderTextColor="#8a8a9e"
-                                value={name}
-                                onChangeText={setName}
-                            />
-                        </View>
+                            <View style={styles.formContainer}>
+                                <View style={styles.inputWrapper}>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Name"
+                                        placeholderTextColor="#8a8a9e"
+                                        value={name}
+                                        onChangeText={setName}
+                                    />
+                                </View>
 
-                        <View style={styles.inputWrapper}>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Email"
-                                placeholderTextColor="#8a8a9e"
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                            />
-                        </View>
+                                <View style={styles.inputWrapper}>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Email"
+                                        placeholderTextColor="#8a8a9e"
+                                        value={email}
+                                        onChangeText={setEmail}
+                                        keyboardType="email-address"
+                                        autoCapitalize="none"
+                                    />
+                                </View>
 
-                        <View style={styles.inputWrapper}>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Password (min 6 characters)"
-                                placeholderTextColor="#8a8a9e"
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry
-                            />
-                        </View>
+                                <View style={styles.inputWrapper}>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Password (min 6 characters)"
+                                        placeholderTextColor="#8a8a9e"
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        secureTextEntry
+                                    />
+                                </View>
 
-                        <View style={styles.genderContainer}>
-                            <Text style={styles.label}>Gender</Text>
-                            <View style={styles.genderButtons}>
+                                <View style={styles.genderContainer}>
+                                    <Text style={styles.label}>Gender</Text>
+                                    <View style={styles.genderButtons}>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.genderButton,
+                                                gender === 'Male' && styles.genderButtonActive,
+                                            ]}
+                                            onPress={() => setGender('Male')}>
+                                            <Text
+                                                style={[
+                                                    styles.genderButtonText,
+                                                    gender === 'Male' && styles.genderButtonTextActive,
+                                                ]}>
+                                                Male
+                                            </Text>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.genderButton,
+                                                gender === 'Female' && styles.genderButtonActive,
+                                            ]}
+                                            onPress={() => setGender('Female')}>
+                                            <Text
+                                                style={[
+                                                    styles.genderButtonText,
+                                                    gender === 'Female' && styles.genderButtonTextActive,
+                                                ]}>
+                                                Female
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+
                                 <TouchableOpacity
-                                    style={[
-                                        styles.genderButton,
-                                        gender === 'Male' && styles.genderButtonActive,
-                                    ]}
-                                    onPress={() => setGender('Male')}>
-                                    <Text
-                                        style={[
-                                            styles.genderButtonText,
-                                            gender === 'Male' && styles.genderButtonTextActive,
-                                        ]}>
-                                        Male
-                                    </Text>
+                                    style={[styles.button, loading && styles.buttonDisabled]}
+                                    onPress={handleRegister}
+                                    disabled={loading}>
+                                    {loading ? (
+                                        <ActivityIndicator color="#1a1a2e" />
+                                    ) : (
+                                        <Text style={styles.buttonText}>Register</Text>
+                                    )}
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
-                                    style={[
-                                        styles.genderButton,
-                                        gender === 'Female' && styles.genderButtonActive,
-                                    ]}
-                                    onPress={() => setGender('Female')}>
-                                    <Text
-                                        style={[
-                                            styles.genderButtonText,
-                                            gender === 'Female' && styles.genderButtonTextActive,
-                                        ]}>
-                                        Female
+                                    onPress={() => navigation.navigate('Login')}
+                                    style={styles.linkButton}>
+                                    <Text style={styles.linkText}>
+                                        Already have an account? <Text style={styles.linkBold}>Login</Text>
                                     </Text>
                                 </TouchableOpacity>
                             </View>
-                        </View>
-
-                        <TouchableOpacity
-                            style={[styles.button, loading && styles.buttonDisabled]}
-                            onPress={handleRegister}
-                            disabled={loading}>
-                            {loading ? (
-                                <ActivityIndicator color="#1a1a2e" />
-                            ) : (
-                                <Text style={styles.buttonText}>Register</Text>
-                            )}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate('Login')}
-                            style={styles.linkButton}>
-                            <Text style={styles.linkText}>
-                                Already have an account? <Text style={styles.linkBold}>Login</Text>
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </ScrollView>
+                        </ScrollView>
+                    </TouchableWithoutFeedback>
+                </KeyboardAvoidingView>
             </SafeAreaView>
         </LinearGradient>
     );
@@ -174,6 +184,9 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     container: {
+        flex: 1,
+    },
+    keyboardAvoidingView: {
         flex: 1,
     },
     scrollContent: {

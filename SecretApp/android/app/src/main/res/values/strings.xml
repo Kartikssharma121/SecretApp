@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">IGNYT</string>
+    <string moduleConfig="true" name="CodePushServerUrl">https://api.revopush.org</string>
+    <string moduleConfig="true" name="CodePushDeploymentKey">KAax-sVhT7T3PoSf7KhP8JoJGDC64kAlG_9Z4e</string>
 </resources>

@@ -183,8 +183,8 @@ const ChatScreen = ({ navigation, route }) => {
                 <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
                 <KeyboardAvoidingView
                     style={styles.container}
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    keyboardVerticalOffset={90}>
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    keyboardVerticalOffset={0}>
 
                     {isSearching ? (
                         /* ── Searching State ── */

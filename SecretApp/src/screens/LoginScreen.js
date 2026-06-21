@@ -8,6 +8,11 @@ import {
     Alert,
     ActivityIndicator,
     StatusBar,
+    KeyboardAvoidingView,
+    Platform,
+    TouchableWithoutFeedback,
+    Keyboard,
+    ScrollView,
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -56,58 +61,65 @@ const LoginScreen = ({ navigation }) => {
         >
             <SafeAreaView style={styles.container}>
                 <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.keyboardAvoidingView}
+                >
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                        <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
+                            <View style={styles.content}>
+                                <View style={styles.headerContainer}>
+                                    <Text style={styles.title}>IGNYT</Text>
+                                    <Text style={styles.subtitle}>Welcome back, login to continue</Text>
+                                </View>
 
-                <View style={styles.content}>
-                    <View style={styles.headerContainer}>
+                                <View style={styles.formContainer}>
+                                    <View style={styles.inputWrapper}>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Email"
+                                            placeholderTextColor="#8a8a9e"
+                                            value={email}
+                                            onChangeText={setEmail}
+                                            keyboardType="email-address"
+                                            autoCapitalize="none"
+                                        />
+                                    </View>
 
-                        <Text style={styles.title}>IGNYT</Text>
-                        <Text style={styles.subtitle}>Welcome back, login to continue</Text>
-                    </View>
+                                    <View style={styles.inputWrapper}>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Password"
+                                            placeholderTextColor="#8a8a9e"
+                                            value={password}
+                                            onChangeText={setPassword}
+                                            secureTextEntry
+                                        />
+                                    </View>
 
-                    <View style={styles.formContainer}>
-                        <View style={styles.inputWrapper}>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Email"
-                                placeholderTextColor="#8a8a9e"
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                            />
-                        </View>
+                                    <TouchableOpacity
+                                        style={[styles.button, loading && styles.buttonDisabled]}
+                                        onPress={handleLogin}
+                                        disabled={loading}>
+                                        {loading ? (
+                                            <ActivityIndicator color="#1a1a2e" />
+                                        ) : (
+                                            <Text style={styles.buttonText}>Login</Text>
+                                        )}
+                                    </TouchableOpacity>
 
-                        <View style={styles.inputWrapper}>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Password"
-                                placeholderTextColor="#8a8a9e"
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry
-                            />
-                        </View>
-
-                        <TouchableOpacity
-                            style={[styles.button, loading && styles.buttonDisabled]}
-                            onPress={handleLogin}
-                            disabled={loading}>
-                            {loading ? (
-                                <ActivityIndicator color="#1a1a2e" />
-                            ) : (
-                                <Text style={styles.buttonText}>Login</Text>
-                            )}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate('Register')}
-                            style={styles.linkButton}>
-                            <Text style={styles.linkText}>
-                                Don't have an account? <Text style={styles.linkBold}>Register</Text>
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                                    <TouchableOpacity
+                                        onPress={() => navigation.navigate('Register')}
+                                        style={styles.linkButton}>
+                                        <Text style={styles.linkText}>
+                                            Don't have an account? <Text style={styles.linkBold}>Register</Text>
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </ScrollView>
+                    </TouchableWithoutFeedback>
+                </KeyboardAvoidingView>
             </SafeAreaView>
         </LinearGradient>
     );
@@ -119,6 +131,13 @@ const styles = StyleSheet.create({
     },
     container: {
         flex: 1,
+    },
+    keyboardAvoidingView: {
+        flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        justifyContent: 'center',
     },
     content: {
         flex: 1,
