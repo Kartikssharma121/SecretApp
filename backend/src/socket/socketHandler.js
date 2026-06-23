@@ -233,7 +233,7 @@ const initializeSocket = (io) => {
         // CHAT MESSAGE
         socket.on('message', async (data) => {
             try {
-                const { message, receiverId, matchId } = data;
+                const { message, receiverId, matchId, replyTo } = data;
 
                 // Security check
                 const matchData = activeMatches.get(userId);
@@ -250,6 +250,7 @@ const initializeSocket = (io) => {
                     message,
                     timestamp: Date.now(),
                     seen: false,
+                    replyTo: replyTo || null,
                 });
 
                 // Send to receiver
@@ -263,6 +264,7 @@ const initializeSocket = (io) => {
                         message,
                         timestamp: newMessage.timestamp,
                         seen: false,
+                        replyTo: newMessage.replyTo || null,
                     });
                 }
 
@@ -275,10 +277,53 @@ const initializeSocket = (io) => {
                     message,
                     timestamp: newMessage.timestamp,
                     seen: false,
+                    replyTo: newMessage.replyTo || null,
                 });
             } catch (error) {
                 console.error('Message error:', error);
                 socket.emit('error', { message: 'Failed to send message' });
+            }
+        });
+
+        // MESSAGE REACTION
+        socket.on('messageReaction', async (data) => {
+            try {
+                const { messageId, emoji, receiverId } = data;
+
+                // Security check
+                const matchData = activeMatches.get(userId);
+                if (!matchData || matchData.partnerId !== receiverId) {
+                    console.warn(`[Security] Blocked unauthorized reaction from ${userId} to ${receiverId}`);
+                    return;
+                }
+
+                // Update message in database
+                const message = await Message.findById(messageId);
+                if (message) {
+                    if (!message.reactions) {
+                        message.reactions = [];
+                    }
+                    // Remove existing reaction for this user
+                    message.reactions = message.reactions.filter(
+                        (r) => r.userId.toString() !== userId
+                    );
+                    if (emoji) {
+                        message.reactions.push({ userId, emoji });
+                    }
+                    await message.save();
+                }
+
+                // Send to receiver
+                const receiverSocketId = userSockets.get(receiverId);
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit('messageReaction', {
+                        messageId,
+                        reaction: emoji ? { userId, emoji } : null,
+                        senderId: userId,
+                    });
+                }
+            } catch (error) {
+                console.error('Reaction error:', error);
             }
         });
 

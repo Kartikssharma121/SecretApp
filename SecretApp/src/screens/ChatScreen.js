@@ -10,10 +10,11 @@ import {
     KeyboardAvoidingView,
     Platform,
     StatusBar,
+    Modal,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import useSocket from '../hooks/useSocket';
-import { addMessage } from '../store/socketSlice';
+import { addMessage, updateMessageReaction, clearMatchData } from '../store/socketSlice';
 import { selectCurrentUser } from '../store/authSlice';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -46,10 +47,43 @@ const ChatScreen = ({ navigation, route }) => {
     const [messageText, setMessageText] = useState('');
     const [alertConfig, setAlertConfig] = useState({ visible: false });
     const flatListRef = useRef(null);
+    const isChatActiveRef = useRef(false);
+    const [replyToMessage, setReplyToMessage] = useState(null);
+    const [selectedMessage, setSelectedMessage] = useState(null);
 
     const showAlert = (title, message, buttons) =>
         setAlertConfig({ visible: true, title, message, buttons });
     const hideAlert = () => setAlertConfig({ visible: false });
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+            if (!isChatActiveRef.current) {
+                return;
+            }
+
+            e.preventDefault();
+
+            showAlert(
+                'Disconnect',
+                'Are you sure you want to go back? The chat will be disconnected.',
+                [
+                    { text: 'Cancel', style: 'cancel', onPress: hideAlert },
+                    {
+                        text: 'Disconnect',
+                        style: 'destructive',
+                        onPress: () => {
+                            hideAlert();
+                            isChatActiveRef.current = false;
+                            socket.disconnectPartner();
+                            navigation.dispatch(e.data.action);
+                        },
+                    },
+                ]
+            );
+        });
+
+        return unsubscribe;
+    }, [navigation, socket]);
 
     useEffect(() => {
         if (isSocketConnected && socket.socket) {
@@ -57,6 +91,7 @@ const ChatScreen = ({ navigation, route }) => {
         }
 
         socket.onPartnerDisconnected((data) => {
+            isChatActiveRef.current = false;
             showAlert(
                 'Disconnected',
                 'Stranger disconnected',
@@ -71,6 +106,8 @@ const ChatScreen = ({ navigation, route }) => {
                                 setIsSearching(true);
                                 setPartnerId(null);
                                 setMatchId(null);
+                                setReplyToMessage(null);
+                                setSelectedMessage(null);
                             }
                         },
                     },
@@ -86,10 +123,17 @@ const ChatScreen = ({ navigation, route }) => {
     }, [isSocketConnected]);
 
     useEffect(() => {
+        return () => {
+            dispatch(clearMatchData());
+        };
+    }, [dispatch]);
+
+    useEffect(() => {
         if (matchData && matchData.type === 'chat') {
             setIsSearching(false);
             setPartnerId(matchData.partnerId);
             setMatchId(matchData.matchId);
+            isChatActiveRef.current = true;
         }
     }, [matchData]);
 
@@ -108,6 +152,12 @@ const ChatScreen = ({ navigation, route }) => {
 
     const handleSendMessage = () => {
         if (messageText.trim() && partnerId && matchId) {
+            const replyToData = replyToMessage ? {
+                messageId: replyToMessage._id,
+                text: replyToMessage.message,
+                senderId: replyToMessage.senderId,
+            } : null;
+
             const newMessage = {
                 _id: Date.now().toString(),
                 matchId,
@@ -116,10 +166,12 @@ const ChatScreen = ({ navigation, route }) => {
                 message: messageText.trim(),
                 timestamp: new Date(),
                 seen: false,
+                replyTo: replyToData,
             };
             dispatch(addMessage(newMessage));
-            socket.sendMessage(messageText.trim(), partnerId, matchId);
+            socket.sendMessage(messageText.trim(), partnerId, matchId, replyToData);
             setMessageText('');
+            setReplyToMessage(null);
         }
     };
 
@@ -131,6 +183,7 @@ const ChatScreen = ({ navigation, route }) => {
                 style: 'destructive',
                 onPress: () => {
                     hideAlert();
+                    isChatActiveRef.current = false;
                     socket.disconnectPartner();
                     safeGoBack();
                 },
@@ -139,39 +192,87 @@ const ChatScreen = ({ navigation, route }) => {
     };
 
     const handleFindNew = () => {
+        isChatActiveRef.current = false;
         socket.disconnectPartner();
         socket.joinQueue(type, preferences);
         setIsSearching(true);
         setPartnerId(null);
         setMatchId(null);
+        setReplyToMessage(null);
+        setSelectedMessage(null);
+    };
+
+    const handleReactToMessage = (message, emoji) => {
+        if (!message) return;
+
+        const existingReaction = message.reactions?.find((r) => r.userId === userId);
+        const newEmoji = existingReaction?.emoji === emoji ? null : emoji;
+
+        dispatch(updateMessageReaction({
+            messageId: message._id,
+            reaction: { userId, emoji: newEmoji },
+        }));
+
+        socket.sendReaction(message._id, newEmoji, partnerId);
+        setSelectedMessage(null);
     };
 
     const renderMessage = ({ item }) => {
         const isMyMessage = item.senderId === userId;
+        const hasReactions = item.reactions && item.reactions.length > 0;
         return (
             <View
                 style={[
                     styles.messageWrapper,
                     isMyMessage ? styles.myMessageWrapper : styles.theirMessageWrapper,
+                    hasReactions && styles.messageWrapperWithReactions,
                 ]}>
                 {!isMyMessage && (
                     <View style={styles.avatarCircle}>
                         <Text style={styles.avatarText}>S</Text>
                     </View>
                 )}
-                <View style={[
-                    styles.messageBubble,
-                    isMyMessage ? styles.myMessage : styles.theirMessage,
-                ]}>
-                    <Text style={[styles.messageText, !isMyMessage && styles.theirMessageText]}>
-                        {item.message}
-                    </Text>
-                    <Text style={[styles.messageTime, !isMyMessage && styles.theirMessageTime]}>
-                        {new Date(item.timestamp).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                        })}
-                    </Text>
+                <View style={styles.bubbleContainer}>
+                    <TouchableOpacity
+                        activeOpacity={0.85}
+                        onLongPress={() => setSelectedMessage(item)}
+                        style={[
+                            styles.messageBubble,
+                            isMyMessage ? styles.myMessage : styles.theirMessage,
+                        ]}>
+                        {item.replyTo && item.replyTo.text && (
+                            <View style={[
+                                styles.messageReplyQuote,
+                                isMyMessage ? styles.myMessageReplyQuote : styles.theirMessageReplyQuote
+                            ]}>
+                                <Text style={styles.messageReplySender}>
+                                    {item.replyTo.senderId === userId ? 'You' : 'Stranger'}
+                                </Text>
+                                <Text style={styles.messageReplyText} numberOfLines={2}>
+                                    {item.replyTo.text}
+                                </Text>
+                            </View>
+                        )}
+                        <Text style={[styles.messageText, !isMyMessage && styles.theirMessageText]}>
+                            {item.message}
+                        </Text>
+                        <Text style={[styles.messageTime, !isMyMessage && styles.theirMessageTime]}>
+                            {new Date(item.timestamp).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                            })}
+                        </Text>
+                    </TouchableOpacity>
+                    {hasReactions && (
+                        <View style={[
+                            styles.reactionPill,
+                            isMyMessage ? styles.myReactionPill : styles.theirReactionPill
+                        ]}>
+                            <Text style={styles.reactionText}>
+                                {item.reactions.map((r) => r.emoji).join('')}
+                            </Text>
+                        </View>
+                    )}
                 </View>
             </View>
         );
@@ -252,6 +353,28 @@ const ChatScreen = ({ navigation, route }) => {
                                 </View>
                             )}
 
+                            {/* Reply Preview */}
+                            {replyToMessage && (
+                                <View style={styles.replyPreviewContainer}>
+                                    <View style={styles.replyPreviewBar}>
+                                        <View style={styles.replyPreviewLeftBorder} />
+                                        <View style={styles.replyPreviewContent}>
+                                            <Text style={styles.replyPreviewSender}>
+                                                Reply to {replyToMessage.senderId === userId ? 'You' : 'Stranger'}
+                                            </Text>
+                                            <Text style={styles.replyPreviewText} numberOfLines={1}>
+                                                {replyToMessage.message}
+                                            </Text>
+                                        </View>
+                                        <TouchableOpacity
+                                            style={styles.replyPreviewCloseButton}
+                                            onPress={() => setReplyToMessage(null)}>
+                                            <Text style={styles.replyPreviewCloseText}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            )}
+
                             {/* Input Bar */}
                             <View style={styles.inputContainer}>
                                 <TextInput
@@ -281,6 +404,63 @@ const ChatScreen = ({ navigation, route }) => {
                 buttons={alertConfig.buttons || []}
                 onClose={hideAlert}
             />
+            {/* Message Options / Reactions Modal */}
+            <Modal
+                visible={!!selectedMessage}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setSelectedMessage(null)}
+            >
+                <TouchableOpacity
+                    style={styles.modalBackdrop}
+                    activeOpacity={1}
+                    onPress={() => setSelectedMessage(null)}
+                >
+                    <View style={styles.reactionModalContent}>
+                        {/* Reaction emojis row */}
+                        <View style={styles.reactionEmojisRow}>
+                            {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => {
+                                const userReaction = selectedMessage?.reactions?.find((r) => r.userId === userId);
+                                const isSelected = userReaction?.emoji === emoji;
+                                return (
+                                    <TouchableOpacity
+                                        key={emoji}
+                                        style={[
+                                            styles.reactionEmojiButton,
+                                            isSelected && styles.reactionEmojiButtonSelected
+                                        ]}
+                                        onPress={() => handleReactToMessage(selectedMessage, emoji)}
+                                    >
+                                        <Text style={styles.reactionEmojiText}>{emoji}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+
+                        {/* Options list */}
+                        <View style={styles.optionsList}>
+                            <TouchableOpacity
+                                style={styles.optionItem}
+                                onPress={() => {
+                                    setReplyToMessage(selectedMessage);
+                                    setSelectedMessage(null);
+                                }}
+                            >
+                                <Text style={styles.optionIcon}>💬</Text>
+                                <Text style={styles.optionText}>Reply</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.optionItem, styles.optionItemLast]}
+                                onPress={() => setSelectedMessage(null)}
+                            >
+                                <Text style={styles.optionIcon}>✕</Text>
+                                <Text style={[styles.optionText, styles.cancelOptionText]}>Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </LinearGradient>
     );
 };
@@ -445,7 +625,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
     },
     messageBubble: {
-        maxWidth: '75%',
         padding: 12,
         borderRadius: 18,
     },
@@ -533,6 +712,187 @@ const styles = StyleSheet.create({
         color: '#1a1a2e',
         fontWeight: 'bold',
         fontSize: 20,
+    },
+    replyPreviewContainer: {
+        paddingHorizontal: 14,
+        paddingTop: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    },
+    replyPreviewBar: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 10,
+        overflow: 'hidden',
+        alignItems: 'center',
+        paddingRight: 10,
+    },
+    replyPreviewLeftBorder: {
+        width: 4,
+        height: '100%',
+        backgroundColor: '#b45080',
+    },
+    replyPreviewContent: {
+        flex: 1,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+    },
+    replyPreviewSender: {
+        color: '#d0a0c8',
+        fontSize: 13,
+        fontWeight: 'bold',
+        marginBottom: 2,
+    },
+    replyPreviewText: {
+        color: '#a0a0b8',
+        fontSize: 13,
+    },
+    replyPreviewCloseButton: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    replyPreviewCloseText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 'bold',
+    },
+    messageReplyQuote: {
+        borderLeftWidth: 3,
+        borderRadius: 4,
+        padding: 6,
+        marginBottom: 6,
+    },
+    myMessageReplyQuote: {
+        borderLeftColor: '#fff',
+        backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    },
+    theirMessageReplyQuote: {
+        borderLeftColor: '#b45080',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    messageReplySender: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#d0a0c8',
+        marginBottom: 2,
+    },
+    messageReplyText: {
+        fontSize: 12,
+        color: 'rgba(255, 255, 255, 0.7)',
+    },
+    messageWrapperWithReactions: {
+        marginBottom: 22,
+    },
+    bubbleContainer: {
+        position: 'relative',
+        maxWidth: '75%',
+    },
+    reactionPill: {
+        position: 'absolute',
+        bottom: -8,
+        backgroundColor: '#241b2f',
+        borderWidth: 1.5,
+        borderColor: 'rgba(255, 255, 255, 0.15)',
+        borderRadius: 12,
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.35,
+        shadowRadius: 2.2,
+        elevation: 3,
+    },
+    myReactionPill: {
+        right: 8,
+    },
+    theirReactionPill: {
+        left: 8,
+    },
+    reactionText: {
+        fontSize: 12,
+    },
+    modalBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.65)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    reactionModalContent: {
+        width: '90%',
+        maxWidth: 320,
+        backgroundColor: '#1c1524',
+        borderRadius: 24,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.45,
+        shadowRadius: 16,
+        elevation: 10,
+    },
+    reactionEmojisRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        borderRadius: 18,
+        paddingVertical: 10,
+        paddingHorizontal: 8,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+    },
+    reactionEmojiButton: {
+        width: 38,
+        height: 38,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 19,
+    },
+    reactionEmojiButtonSelected: {
+        backgroundColor: 'rgba(180, 100, 200, 0.35)',
+        borderWidth: 1,
+        borderColor: 'rgba(180, 100, 200, 0.6)',
+    },
+    reactionEmojiText: {
+        fontSize: 24,
+    },
+    optionsList: {
+        width: '100%',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: 16,
+        overflow: 'hidden',
+    },
+    optionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    },
+    optionItemLast: {
+        borderBottomWidth: 0,
+    },
+    optionIcon: {
+        fontSize: 16,
+        marginRight: 12,
+        color: '#fff',
+    },
+    optionText: {
+        fontSize: 15,
+        color: '#fff',
+        fontWeight: '600',
+    },
+    cancelOptionText: {
+        color: '#a0a0b8',
     },
 });
 

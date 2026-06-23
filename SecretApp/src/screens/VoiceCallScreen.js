@@ -8,7 +8,8 @@ import {
     Animated,
     StatusBar,
 } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { clearMatchData } from '../store/socketSlice';
 import useSocket from '../hooks/useSocket';
 import useWebRTC from '../hooks/useWebRTC';
 import LinearGradient from 'react-native-linear-gradient';
@@ -63,6 +64,7 @@ const PulseRing = ({ delay = 0, size = 180, color = 'rgba(180,100,200,0.25)' }) 
 const VoiceCallScreen = ({ navigation, route }) => {
     const { preferences, type } = route.params;
     const matchData = useSelector((state) => state.socket.matchData);
+    const dispatch = useDispatch();
     const queueStatus = useSelector((state) => state.socket.queueStatus);
     const isSocketConnected = useSelector((state) => state.socket.isConnected);
 
@@ -82,16 +84,54 @@ const VoiceCallScreen = ({ navigation, route }) => {
     const [alertConfig, setAlertConfig] = useState({ visible: false });
     const offerTimeoutRef = useRef(null);
     const callTimerRef = useRef(null);
+    const isCallActiveRef = useRef(false);
 
     const showAlert = (title, message, buttons) =>
         setAlertConfig({ visible: true, title, message, buttons });
     const hideAlert = () => setAlertConfig({ visible: false });
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+            if (!isCallActiveRef.current) {
+                return;
+            }
+
+            e.preventDefault();
+
+            showAlert(
+                'End Call',
+                'Are you sure you want to go back? The call will be disconnected.',
+                [
+                    { text: 'Cancel', style: 'cancel', onPress: hideAlert },
+                    {
+                        text: 'End',
+                        style: 'destructive',
+                        onPress: () => {
+                            hideAlert();
+                            isCallActiveRef.current = false;
+                            endCall();
+                            socket.disconnectPartner();
+                            navigation.dispatch(e.data.action);
+                        },
+                    },
+                ]
+            );
+        });
+
+        return unsubscribe;
+    }, [navigation, socket, endCall]);
 
     const { toggleMute, endCall, isMuted, isConnected } = useWebRTC(
         socket,
         partnerId,
         matchData?.isInitiator || false
     );
+
+    useEffect(() => {
+        return () => {
+            dispatch(clearMatchData());
+        };
+    }, [dispatch]);
 
     // Start timer when WebRTC is connected
     useEffect(() => {
@@ -123,6 +163,7 @@ const VoiceCallScreen = ({ navigation, route }) => {
         socket.joinQueue(type, preferences);
 
         const handleDisconnect = () => {
+            isCallActiveRef.current = false;
             showAlert(
                 'Disconnected',
                 'Stranger disconnected',
@@ -165,9 +206,11 @@ const VoiceCallScreen = ({ navigation, route }) => {
             setIsSearching(false);
             setPartnerId(matchData.partnerId);
             setMatchId(matchData.matchId);
+            isCallActiveRef.current = true;
 
             if (!matchData.isInitiator) {
                 offerTimeoutRef.current = setTimeout(async () => {
+                    isCallActiveRef.current = false;
                     endCall();
                     await socket.disconnectPartner();
                     setTimeout(() => socket.joinQueue(type, preferences), 800);
@@ -194,6 +237,7 @@ const VoiceCallScreen = ({ navigation, route }) => {
                 style: 'destructive',
                 onPress: () => {
                     hideAlert();
+                    isCallActiveRef.current = false;
                     endCall();
                     socket.disconnectPartner();
                     safeGoBack();
@@ -203,6 +247,7 @@ const VoiceCallScreen = ({ navigation, route }) => {
     };
 
     const handleFindNew = () => {
+        isCallActiveRef.current = false;
         endCall();
         socket.disconnectPartner();
         socket.joinQueue(type, preferences);
@@ -215,6 +260,7 @@ const VoiceCallScreen = ({ navigation, route }) => {
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextAppState) => {
             if (nextAppState === 'background') {
+                isCallActiveRef.current = false;
                 endCall();
                 socket.disconnectPartner();
                 safeGoBack();

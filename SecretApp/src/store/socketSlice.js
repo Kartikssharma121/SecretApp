@@ -26,6 +26,21 @@ const socketSlice = createSlice({
         addMessage: (state, action) => {
             state.messages.push(action.payload);
         },
+        updateMessageReaction: (state, action) => {
+            const { messageId, reaction } = action.payload; // reaction: { userId, emoji }
+            const message = state.messages.find((m) => m._id === messageId);
+            if (message) {
+                if (!message.reactions) {
+                    message.reactions = [];
+                }
+                // Filter out any existing reaction from this user
+                message.reactions = message.reactions.filter((r) => r.userId !== reaction.userId);
+                // If there's a new emoji (i.e. not removed), add it
+                if (reaction.emoji) {
+                    message.reactions.push(reaction);
+                }
+            }
+        },
         setMessages: (state, action) => {
             state.messages = action.payload;
         },
@@ -43,6 +58,7 @@ export const {
     setMatchData,
     clearMatchData,
     addMessage,
+    updateMessageReaction,
     setMessages,
     setPartnerTyping,
     setQueueStatus,

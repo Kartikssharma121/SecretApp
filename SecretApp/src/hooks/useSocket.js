@@ -7,6 +7,7 @@ import {
     setMatchData,
     clearMatchData,
     addMessage,
+    updateMessageReaction,
     setPartnerTyping,
     setQueueStatus,
 } from '../store/socketSlice';
@@ -81,6 +82,15 @@ export const useSocket = () => {
             dispatch(addMessage(data));
         });
 
+        // Message reaction event
+        socket.on('messageReaction', (data) => {
+            console.log('Reaction received:', data);
+            dispatch(updateMessageReaction({
+                messageId: data.messageId,
+                reaction: data.reaction ? data.reaction : { userId: data.senderId, emoji: null }
+            }));
+        });
+
         // Message sent confirmation
         socket.on('messageSent', (data) => {
             console.log('Message sent confirmation:', data);
@@ -119,9 +129,9 @@ export const useSocket = () => {
     }, []);
 
     // Send message
-    const sendMessage = useCallback((message, receiverId, matchId) => {
+    const sendMessage = useCallback((message, receiverId, matchId, replyTo) => {
         if (socketRef.current) {
-            socketRef.current.emit('message', { message, receiverId, matchId });
+            socketRef.current.emit('message', { message, receiverId, matchId, replyTo });
         }
     }, []);
 
@@ -215,6 +225,13 @@ export const useSocket = () => {
         }
     }, []);
 
+    // Send reaction
+    const sendReaction = useCallback((messageId, emoji, receiverId) => {
+        if (socketRef.current) {
+            socketRef.current.emit('messageReaction', { messageId, emoji, receiverId });
+        }
+    }, []);
+
     return {
         socket: socketRef.current,
         joinQueue,
@@ -234,6 +251,7 @@ export const useSocket = () => {
         offAnswer,
         offIceCandidate,
         offPartnerDisconnected,
+        sendReaction,
     };
 };
 

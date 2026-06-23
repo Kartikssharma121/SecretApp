@@ -29,6 +29,29 @@ const messageSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    replyTo: {
+        messageId: {
+            type: String,
+        },
+        text: {
+            type: String,
+        },
+        senderId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
+    },
+    reactions: [
+        {
+            userId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User',
+            },
+            emoji: {
+                type: String,
+            },
+        },
+    ],
 });
 
 module.exports = mongoose.model('Message', messageSchema);
