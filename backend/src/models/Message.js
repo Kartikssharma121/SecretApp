@@ -18,8 +18,10 @@ const messageSchema = new mongoose.Schema({
     },
     message: {
         type: String,
-        required: true,
         trim: true,
+    },
+    image: {
+        type: String,
     },
     timestamp: {
         type: Date,

@@ -11,6 +11,7 @@ import {
     Platform,
     StatusBar,
     Modal,
+    Image,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import useSocket from '../hooks/useSocket';
@@ -19,6 +20,7 @@ import { selectCurrentUser } from '../store/authSlice';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CustomAlert from '../components/CustomAlert';
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 const ChatScreen = ({ navigation, route }) => {
     const { preferences, type } = route.params;
@@ -217,6 +219,87 @@ const ChatScreen = ({ navigation, route }) => {
         setSelectedMessage(null);
     };
 
+    const handlePickImage = () => {
+        showAlert('Share Photo', 'Choose an option to share a photo:', [
+            {
+                text: 'Camera',
+                onPress: () => {
+                    hideAlert();
+                    launchCamera(
+                        {
+                            mediaType: 'photo',
+                            includeBase64: true,
+                            quality: 0.7,
+                        },
+                        (response) => {
+                            if (response.didCancel) return;
+                            if (response.errorCode) {
+                                console.error('Camera error:', response.errorMessage);
+                                return;
+                            }
+                            if (response.assets && response.assets.length > 0) {
+                                const asset = response.assets[0];
+                                const base64Image = `data:${asset.type};base64,${asset.base64}`;
+                                sendImageMessage(base64Image);
+                            }
+                        }
+                    );
+                },
+            },
+            {
+                text: 'Gallery',
+                onPress: () => {
+                    hideAlert();
+                    launchImageLibrary(
+                        {
+                            mediaType: 'photo',
+                            includeBase64: true,
+                            quality: 0.7,
+                        },
+                        (response) => {
+                            if (response.didCancel) return;
+                            if (response.errorCode) {
+                                console.error('Gallery error:', response.errorMessage);
+                                return;
+                            }
+                            if (response.assets && response.assets.length > 0) {
+                                const asset = response.assets[0];
+                                const base64Image = `data:${asset.type};base64,${asset.base64}`;
+                                sendImageMessage(base64Image);
+                            }
+                        }
+                    );
+                },
+            },
+            { text: 'Cancel', style: 'cancel', onPress: hideAlert },
+        ]);
+    };
+
+    const sendImageMessage = (base64Image) => {
+        if (partnerId && matchId) {
+            const replyToData = replyToMessage ? {
+                messageId: replyToMessage._id,
+                text: replyToMessage.message,
+                senderId: replyToMessage.senderId,
+            } : null;
+
+            const newMessage = {
+                _id: Date.now().toString(),
+                matchId,
+                senderId: userId,
+                receiverId: partnerId,
+                message: '',
+                image: base64Image,
+                timestamp: new Date(),
+                seen: false,
+                replyTo: replyToData,
+            };
+            dispatch(addMessage(newMessage));
+            socket.sendMessage('', partnerId, matchId, replyToData, base64Image);
+            setReplyToMessage(null);
+        }
+    };
+
     const renderMessage = ({ item }) => {
         const isMyMessage = item.senderId === userId;
         const hasReactions = item.reactions && item.reactions.length > 0;
@@ -239,6 +322,7 @@ const ChatScreen = ({ navigation, route }) => {
                         style={[
                             styles.messageBubble,
                             isMyMessage ? styles.myMessage : styles.theirMessage,
+                            item.image && styles.imageMessageBubble,
                         ]}>
                         {item.replyTo && item.replyTo.text && (
                             <View style={[
@@ -253,9 +337,14 @@ const ChatScreen = ({ navigation, route }) => {
                                 </Text>
                             </View>
                         )}
-                        <Text style={[styles.messageText, !isMyMessage && styles.theirMessageText]}>
-                            {item.message}
-                        </Text>
+                        {item.image && (
+                            <Image source={{ uri: item.image }} style={styles.messageImage} />
+                        )}
+                        {item.message ? (
+                            <Text style={[styles.messageText, !isMyMessage && styles.theirMessageText]}>
+                                {item.message}
+                            </Text>
+                        ) : null}
                         <Text style={[styles.messageTime, !isMyMessage && styles.theirMessageTime]}>
                             {new Date(item.timestamp).toLocaleTimeString([], {
                                 hour: '2-digit',
@@ -377,6 +466,12 @@ const ChatScreen = ({ navigation, route }) => {
 
                             {/* Input Bar */}
                             <View style={styles.inputContainer}>
+                                <TouchableOpacity
+                                    style={styles.attachButton}
+                                    onPress={handlePickImage}
+                                >
+                                    <Text style={styles.attachButtonText}>📷</Text>
+                                </TouchableOpacity>
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Type a message…"
@@ -893,6 +988,29 @@ const styles = StyleSheet.create({
     },
     cancelOptionText: {
         color: '#a0a0b8',
+    },
+    attachButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    attachButtonText: {
+        fontSize: 20,
+    },
+    imageMessageBubble: {
+        padding: 4,
+        borderRadius: 18,
+    },
+    messageImage: {
+        width: 220,
+        height: 180,
+        borderRadius: 14,
+        marginBottom: 4,
     },
 });
 

@@ -3,6 +3,13 @@ const User = require('../models/User');
 const Match = require('../models/Match');
 const Message = require('../models/Message');
 const matchingService = require('../services/matchingService');
+const ImageKit = require('imagekit');
+
+const imagekit = new ImageKit({
+    publicKey: process.env.IMAGEKIT_PUBLIC_KEY || '',
+    privateKey: process.env.IMAGEKIT_PRIVATE_KEY || '',
+    urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT || '',
+});
 
 // Store socket user mappings
 const userSockets = new Map(); // userId -> socketId
@@ -233,13 +240,30 @@ const initializeSocket = (io) => {
         // CHAT MESSAGE
         socket.on('message', async (data) => {
             try {
-                const { message, receiverId, matchId, replyTo } = data;
+                const { message, receiverId, matchId, replyTo, image } = data;
 
                 // Security check
                 const matchData = activeMatches.get(userId);
                 if (!matchData || matchData.partnerId !== receiverId || matchData.matchId.toString() !== matchId.toString()) {
                     console.warn(`[Security] Blocked unauthorized message from ${userId} to ${receiverId}`);
                     return;
+                }
+
+                // Upload to ImageKit if base64 string is provided
+                let imageUrl = null;
+                if (image && image.startsWith('data:image')) {
+                    try {
+                        const uploadResponse = await imagekit.upload({
+                            file: image,
+                            fileName: `chat_photo_${Date.now()}.jpg`,
+                        });
+                        imageUrl = uploadResponse.url;
+                    } catch (uploadError) {
+                        console.error('ImageKit upload failed, falling back to base64:', uploadError);
+                        imageUrl = image;
+                    }
+                } else if (image) {
+                    imageUrl = image;
                 }
 
                 // Save message to database
@@ -251,6 +275,7 @@ const initializeSocket = (io) => {
                     timestamp: Date.now(),
                     seen: false,
                     replyTo: replyTo || null,
+                    image: imageUrl,
                 });
 
                 // Send to receiver
@@ -265,6 +290,7 @@ const initializeSocket = (io) => {
                         timestamp: newMessage.timestamp,
                         seen: false,
                         replyTo: newMessage.replyTo || null,
+                        image: newMessage.image || null,
                     });
                 }
 
@@ -278,6 +304,7 @@ const initializeSocket = (io) => {
                     timestamp: newMessage.timestamp,
                     seen: false,
                     replyTo: newMessage.replyTo || null,
+                    image: newMessage.image || null,
                 });
             } catch (error) {
                 console.error('Message error:', error);

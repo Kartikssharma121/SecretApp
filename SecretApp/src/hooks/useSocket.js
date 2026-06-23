@@ -129,9 +129,9 @@ export const useSocket = () => {
     }, []);
 
     // Send message
-    const sendMessage = useCallback((message, receiverId, matchId, replyTo) => {
+    const sendMessage = useCallback((message, receiverId, matchId, replyTo, image) => {
         if (socketRef.current) {
-            socketRef.current.emit('message', { message, receiverId, matchId, replyTo });
+            socketRef.current.emit('message', { message, receiverId, matchId, replyTo, image });
         }
     }, []);
 
