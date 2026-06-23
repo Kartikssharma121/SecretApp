@@ -240,7 +240,7 @@ const initializeSocket = (io) => {
         // CHAT MESSAGE
         socket.on('message', async (data) => {
             try {
-                const { message, receiverId, matchId, replyTo, image } = data;
+                const { message, receiverId, matchId, replyTo, image, clientMsgId } = data;
 
                 // Security check
                 const matchData = activeMatches.get(userId);
@@ -297,6 +297,7 @@ const initializeSocket = (io) => {
                 // Confirm to sender
                 socket.emit('messageSent', {
                     _id: newMessage._id,
+                    clientMsgId: clientMsgId || null,
                     matchId,
                     senderId: userId,
                     receiverId,
@@ -321,6 +322,13 @@ const initializeSocket = (io) => {
                 const matchData = activeMatches.get(userId);
                 if (!matchData || matchData.partnerId !== receiverId) {
                     console.warn(`[Security] Blocked unauthorized reaction from ${userId} to ${receiverId}`);
+                    return;
+                }
+
+                // Validate ObjectId format to prevent CastError
+                const mongoose = require('mongoose');
+                if (!mongoose.Types.ObjectId.isValid(messageId)) {
+                    console.warn(`[Reaction] Invalid messageId format: ${messageId}`);
                     return;
                 }
 

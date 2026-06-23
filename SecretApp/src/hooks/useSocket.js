@@ -8,6 +8,7 @@ import {
     clearMatchData,
     addMessage,
     updateMessageReaction,
+    updateMessageId,
     setPartnerTyping,
     setQueueStatus,
 } from '../store/socketSlice';
@@ -94,6 +95,12 @@ export const useSocket = () => {
         // Message sent confirmation
         socket.on('messageSent', (data) => {
             console.log('Message sent confirmation:', data);
+            if (data.clientMsgId) {
+                dispatch(updateMessageId({
+                    oldId: data.clientMsgId,
+                    newId: data._id,
+                }));
+            }
         });
 
         // Typing indicator event
@@ -129,9 +136,9 @@ export const useSocket = () => {
     }, []);
 
     // Send message
-    const sendMessage = useCallback((message, receiverId, matchId, replyTo, image) => {
+    const sendMessage = useCallback((message, receiverId, matchId, replyTo, image, clientMsgId) => {
         if (socketRef.current) {
-            socketRef.current.emit('message', { message, receiverId, matchId, replyTo, image });
+            socketRef.current.emit('message', { message, receiverId, matchId, replyTo, image, clientMsgId });
         }
     }, []);
 

@@ -160,8 +160,9 @@ const ChatScreen = ({ navigation, route }) => {
                 senderId: replyToMessage.senderId,
             } : null;
 
+            const clientMsgId = Date.now().toString();
             const newMessage = {
-                _id: Date.now().toString(),
+                _id: clientMsgId,
                 matchId,
                 senderId: userId,
                 receiverId: partnerId,
@@ -171,7 +172,7 @@ const ChatScreen = ({ navigation, route }) => {
                 replyTo: replyToData,
             };
             dispatch(addMessage(newMessage));
-            socket.sendMessage(messageText.trim(), partnerId, matchId, replyToData);
+            socket.sendMessage(messageText.trim(), partnerId, matchId, replyToData, null, clientMsgId);
             setMessageText('');
             setReplyToMessage(null);
         }
@@ -283,8 +284,9 @@ const ChatScreen = ({ navigation, route }) => {
                 senderId: replyToMessage.senderId,
             } : null;
 
+            const clientMsgId = Date.now().toString();
             const newMessage = {
-                _id: Date.now().toString(),
+                _id: clientMsgId,
                 matchId,
                 senderId: userId,
                 receiverId: partnerId,
@@ -295,7 +297,7 @@ const ChatScreen = ({ navigation, route }) => {
                 replyTo: replyToData,
             };
             dispatch(addMessage(newMessage));
-            socket.sendMessage('', partnerId, matchId, replyToData, base64Image);
+            socket.sendMessage('', partnerId, matchId, replyToData, base64Image, clientMsgId);
             setReplyToMessage(null);
         }
     };

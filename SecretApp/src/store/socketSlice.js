@@ -41,6 +41,13 @@ const socketSlice = createSlice({
                 }
             }
         },
+        updateMessageId: (state, action) => {
+            const { oldId, newId } = action.payload;
+            const message = state.messages.find((m) => m._id === oldId);
+            if (message) {
+                message._id = newId;
+            }
+        },
         setMessages: (state, action) => {
             state.messages = action.payload;
         },
@@ -59,6 +66,7 @@ export const {
     clearMatchData,
     addMessage,
     updateMessageReaction,
+    updateMessageId,
     setMessages,
     setPartnerTyping,
     setQueueStatus,
