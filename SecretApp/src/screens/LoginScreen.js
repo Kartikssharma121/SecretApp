@@ -48,7 +48,16 @@ const LoginScreen = ({ navigation }) => {
             // Navigate to Home
             navigation.replace('Home');
         } catch (error) {
-            Alert.alert('Login Failed', error.message || 'Invalid credentials');
+            if (error.isVerified === false || error.message?.toLowerCase().includes('verify')) {
+                Alert.alert('Verification Required', error.message || 'Please verify your email address.', [
+                    {
+                        text: 'Verify Now',
+                        onPress: () => navigation.navigate('Verification', { email: error.email || email })
+                    }
+                ]);
+            } else {
+                Alert.alert('Login Failed', error.message || 'Invalid credentials');
+            }
         } finally {
             setLoading(false);
         }

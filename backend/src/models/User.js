@@ -45,6 +45,18 @@ const userSchema = new mongoose.Schema({
         type: String,
         select: false,
     },
+    isVerified: {
+        type: Boolean,
+        default: false,
+    },
+    verificationOTP: {
+        type: String,
+        select: false,
+    },
+    verificationOTPExpires: {
+        type: Date,
+        select: false,
+    },
 });
 
 // Hash password before saving

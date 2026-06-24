@@ -44,16 +44,12 @@ const RegisterScreen = ({ navigation }) => {
         try {
             const data = await authService.register({ name, email, password, gender });
 
-            // Save tokens to AsyncStorage
-            await AsyncStorage.setItem('token', data.token);
-            if (data.refreshToken) await AsyncStorage.setItem('refreshToken', data.refreshToken);
-            await AsyncStorage.setItem('user', JSON.stringify(data));
-
-            // Update Redux state
-            dispatch(setCredentials({ user: data, token: data.token, refreshToken: data.refreshToken }));
-
-            // Navigate to Home
-            navigation.replace('Home');
+            Alert.alert('Verification Required', 'A verification code has been sent to your email.', [
+                {
+                    text: 'OK',
+                    onPress: () => navigation.navigate('Verification', { email })
+                }
+            ]);
         } catch (error) {
             Alert.alert('Registration Failed', error.message || 'Please try again');
         } finally {

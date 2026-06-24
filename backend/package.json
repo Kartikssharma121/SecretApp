@@ -26,6 +26,7 @@
     "imagekit": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^7.6.3",
+    "nodemailer": "^9.0.1",
     "socket.io": "^4.7.2"
   },
   "devDependencies": {

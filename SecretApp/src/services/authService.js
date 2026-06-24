@@ -11,6 +11,26 @@ export const authService = {
         }
     },
 
+    // Verify Email with OTP
+    verifyEmail: async (email, otp) => {
+        try {
+            const response = await api.post('/auth/verify-email', { email, otp });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
+    // Resend verification OTP
+    resendOtp: async (email) => {
+        try {
+            const response = await api.post('/auth/resend-otp', { email });
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
+
     // Login user
     login: async (credentials) => {
         try {
