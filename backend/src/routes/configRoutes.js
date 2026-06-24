@@ -38,4 +38,18 @@ router.get('/smtp-check', async (req, res) => {
     });
 });
 
+router.get('/smtp-test', async (req, res) => {
+    const sendEmail = require('../utils/sendEmail');
+    try {
+        const result = await sendEmail({
+            to: 'kartikssharma121@gmail.com',
+            subject: 'SecretCall Live SMTP Diagnostic Test',
+            text: 'This is a test email sent from the live SecretCall server to diagnose SMTP functionality.'
+        });
+        res.json({ result });
+    } catch (err) {
+        res.status(500).json({ error: err.message, stack: err.stack });
+    }
+});
+
 module.exports = router;
