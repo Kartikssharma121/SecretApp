@@ -41,10 +41,11 @@ router.get('/smtp-check', async (req, res) => {
 router.get('/smtp-test', async (req, res) => {
     const sendEmail = require('../utils/sendEmail');
     try {
+        const toEmail = req.query.to || 'kartikssharma121@gmail.com';
         const result = await sendEmail({
-            to: 'kartikssharma121@gmail.com',
+            to: toEmail,
             subject: 'SecretCall Live SMTP Diagnostic Test',
-            text: 'This is a test email sent from the live SecretCall server to diagnose SMTP functionality.'
+            text: `This is a test email sent from the live SecretCall server to ${toEmail} to diagnose SMTP functionality.`
         });
         res.json({ result });
     } catch (err) {
