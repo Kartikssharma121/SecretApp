@@ -1,10 +1,60 @@
 const nodemailer = require('nodemailer');
+const https = require('https');
 
 // Cache the transporter globally to reuse SMTP connections
 let transporterInstance = null;
 
 /**
- * Send email helper using Nodemailer and SMTP.
+ * Helper to send email via Resend's REST HTTP API (avoids SMTP port blocking on Render Free tier)
+ */
+const sendViaResendApi = (apiKey, from, to, subject, text, html) => {
+    return new Promise((resolve, reject) => {
+        const payload = JSON.stringify({
+            from,
+            to: Array.isArray(to) ? to : [to],
+            subject,
+            text,
+            html,
+        });
+
+        const req = https.request({
+            hostname: 'api.resend.com',
+            port: 443,
+            path: '/emails',
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(payload),
+            }
+        }, (res) => {
+            let body = '';
+            res.on('data', (chunk) => body += chunk);
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    try {
+                        const parsed = JSON.parse(body);
+                        resolve({ success: true, messageId: parsed.id });
+                    } catch (e) {
+                        resolve({ success: true, rawResponse: body });
+                    }
+                } else {
+                    reject(new Error(`Resend API returned status ${res.statusCode}: ${body}`));
+                }
+            });
+        });
+
+        req.on('error', (err) => {
+            reject(err);
+        });
+
+        req.write(payload);
+        req.end();
+    });
+};
+
+/**
+ * Send email helper using Resend HTTPS API or standard Nodemailer/SMTP as fallback.
  * Falls back to console logging if credentials are not configured.
  */
 const sendEmail = async (options) => {
@@ -24,6 +74,36 @@ const sendEmail = async (options) => {
         return { success: true, loggedToConsole: true };
     }
 
+    const fromString = `"${SMTP_FROM_NAME || 'IGNYT'}" <${SMTP_FROM_EMAIL}>`;
+
+    // Detect if we are using Resend and bypass standard SMTP to avoid Render port blocking
+    if (SMTP_HOST === 'smtp.resend.com') {
+        try {
+            console.log(`✉️ Sending email via Resend HTTPS API...`);
+            const res = await sendViaResendApi(
+                SMTP_PASS,
+                fromString,
+                options.to,
+                options.subject,
+                options.text,
+                options.html
+            );
+            console.log(`✉️ Email sent via Resend API: ${res.messageId}`);
+            return res;
+        } catch (error) {
+            console.error('❌ Failed to send email via Resend API:', error.message);
+            // Fallback to console logging
+            console.log('\n==================================================');
+            console.log('⚠️  FALLBACK: Email content:');
+            console.log(`To: ${options.to}`);
+            console.log(`Subject: ${options.subject}`);
+            console.log(`Body:\n${options.text}`);
+            console.log('==================================================\n');
+            return { success: false, error: error.message, loggedToConsole: true };
+        }
+    }
+
+    // Default to SMTP connection pooling for other hosts
     try {
         if (!transporterInstance) {
             transporterInstance = nodemailer.createTransport({
@@ -41,7 +121,7 @@ const sendEmail = async (options) => {
         }
 
         const mailOptions = {
-            from: `"${SMTP_FROM_NAME || 'IGNYT'}" <${SMTP_FROM_EMAIL}>`,
+            from: fromString,
             to: options.to,
             subject: options.subject,
             text: options.text,
