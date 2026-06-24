@@ -41,7 +41,7 @@ const sendEmail = async (options) => {
         }
 
         const mailOptions = {
-            from: `"${SMTP_FROM_NAME || 'SecretCall'}" <${SMTP_FROM_EMAIL}>`,
+            from: `"${SMTP_FROM_NAME || 'IGNYT'}" <${SMTP_FROM_EMAIL}>`,
             to: options.to,
             subject: options.subject,
             text: options.text,
