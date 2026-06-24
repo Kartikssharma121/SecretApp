@@ -1,5 +1,8 @@
 const nodemailer = require('nodemailer');
 
+// Cache the transporter globally to reuse SMTP connections
+let transporterInstance = null;
+
 /**
  * Send email helper using Nodemailer and SMTP.
  * Falls back to console logging if credentials are not configured.
@@ -22,15 +25,20 @@ const sendEmail = async (options) => {
     }
 
     try {
-        const transporter = nodemailer.createTransport({
-            host: SMTP_HOST,
-            port: parseInt(SMTP_PORT, 10) || 587,
-            secure: parseInt(SMTP_PORT, 10) === 465, // true for 465, false for other ports
-            auth: {
-                user: SMTP_USER,
-                pass: SMTP_PASS,
-            },
-        });
+        if (!transporterInstance) {
+            transporterInstance = nodemailer.createTransport({
+                pool: true, // Enable SMTP connection pooling
+                maxConnections: 5,
+                maxMessages: 100,
+                host: SMTP_HOST,
+                port: parseInt(SMTP_PORT, 10) || 587,
+                secure: parseInt(SMTP_PORT, 10) === 465, // true for 465, false for other ports
+                auth: {
+                    user: SMTP_USER,
+                    pass: SMTP_PASS,
+                },
+            });
+        }
 
         const mailOptions = {
             from: `"${SMTP_FROM_NAME || 'SecretCall'}" <${SMTP_FROM_EMAIL}>`,
@@ -40,7 +48,7 @@ const sendEmail = async (options) => {
             html: options.html,
         };
 
-        const info = await transporter.sendMail(mailOptions);
+        const info = await transporterInstance.sendMail(mailOptions);
         console.log(`✉️  Email sent: ${info.messageId}`);
         return { success: true, messageId: info.messageId };
     } catch (error) {
