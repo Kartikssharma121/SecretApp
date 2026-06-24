@@ -14,6 +14,7 @@ import OnboardingScreen from '../screens/OnboardingScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import VerificationScreen from '../screens/VerificationScreen';
+import LegalScreen from '../screens/LegalScreen';
 import HomeScreen from '../screens/HomeScreen';
 import VoiceCallScreen from '../screens/VoiceCallScreen';
 import ChatScreen from '../screens/ChatScreen';
@@ -110,6 +111,7 @@ const AppNavigator = () => {
                     <Stack.Screen name="Login" component={LoginScreen} />
                     <Stack.Screen name="Register" component={RegisterScreen} />
                     <Stack.Screen name="Verification" component={VerificationScreen} />
+                    <Stack.Screen name="Legal" component={LegalScreen} />
                     <Stack.Screen name="Home" component={HomeScreen} />
                     <Stack.Screen
                         name="VoiceCall"

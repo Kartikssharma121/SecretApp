@@ -13,6 +13,7 @@ import {
     Platform,
     TouchableWithoutFeedback,
     Keyboard,
+    Linking,
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,14 +21,24 @@ import { setCredentials } from '../store/authSlice';
 import authService from '../services/authService';
 import LinearGradient from 'react-native-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { API_URL } from '../utils/config';
 
 const RegisterScreen = ({ navigation }) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [gender, setGender] = useState('');
+    const [agreed, setAgreed] = useState(false);
     const [loading, setLoading] = useState(false);
     const dispatch = useDispatch();
+
+    const handleOpenTerms = () => {
+        navigation.navigate('Legal', { type: 'terms' });
+    };
+
+    const handleOpenPrivacy = () => {
+        navigation.navigate('Legal', { type: 'privacy' });
+    };
 
     const handleRegister = async () => {
         if (!name || !email || !password || !gender) {
@@ -37,6 +48,11 @@ const RegisterScreen = ({ navigation }) => {
 
         if (password.length < 6) {
             Alert.alert('Error', 'Password must be at least 6 characters');
+            return;
+        }
+
+        if (!agreed) {
+            Alert.alert('Agreement Required', 'You must read and agree to the Terms & Conditions and Privacy Policy to register.');
             return;
         }
 
@@ -146,6 +162,26 @@ const RegisterScreen = ({ navigation }) => {
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
+                                </View>
+
+                                <View style={styles.termsWrapper}>
+                                    <TouchableOpacity
+                                        style={[styles.checkbox, agreed && styles.checkboxChecked]}
+                                        onPress={() => setAgreed(!agreed)}
+                                        activeOpacity={0.8}
+                                    >
+                                        {agreed && <Text style={styles.checkmark}>✓</Text>}
+                                    </TouchableOpacity>
+                                    <Text style={styles.termsText}>
+                                        I agree to the{' '}
+                                        <Text style={styles.termsLink} onPress={handleOpenTerms}>
+                                            Terms & Conditions
+                                        </Text>{' '}
+                                        and{' '}
+                                        <Text style={styles.termsLink} onPress={handleOpenPrivacy}>
+                                            Privacy Policy
+                                        </Text>
+                                    </Text>
                                 </View>
 
                                 <TouchableOpacity
@@ -297,6 +333,43 @@ const styles = StyleSheet.create({
     linkBold: {
         color: '#fff',
         fontWeight: 'bold',
+    },
+    termsWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 24,
+        paddingHorizontal: 4,
+        gap: 12,
+    },
+    checkbox: {
+        width: 22,
+        height: 22,
+        borderRadius: 6,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkboxChecked: {
+        backgroundColor: '#a78bfa',
+        borderColor: '#a78bfa',
+    },
+    checkmark: {
+        color: '#1a1a2e',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    termsText: {
+        color: '#a0a0b8',
+        fontSize: 14,
+        flex: 1,
+        lineHeight: 20,
+    },
+    termsLink: {
+        color: '#fff',
+        textDecorationLine: 'underline',
+        fontWeight: '600',
     },
 });
 

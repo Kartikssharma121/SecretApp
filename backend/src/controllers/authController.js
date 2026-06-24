@@ -64,12 +64,12 @@ const registerUser = async (req, res) => {
           </div>
         `;
 
-        await sendEmail({
+        sendEmail({
             to: user.email,
             subject: 'SecretCall Email Verification Code',
             text: emailText,
             html: emailHtml,
-        });
+        }).catch(err => console.error('Error sending verification email:', err.message));
 
         res.status(201).json({
             message: 'Verification code sent to your email',
@@ -117,12 +117,12 @@ const loginUser = async (req, res) => {
                   </div>
                 `;
 
-                await sendEmail({
+                sendEmail({
                     to: user.email,
                     subject: 'SecretCall Email Verification Code',
                     text: emailText,
                     html: emailHtml,
-                });
+                }).catch(err => console.error('Error sending verification email on login:', err.message));
 
                 return res.status(403).json({
                     message: 'Please verify your email address. A new code has been sent.',
@@ -327,12 +327,12 @@ const resendOTP = async (req, res) => {
           </div>
         `;
 
-        await sendEmail({
+        sendEmail({
             to: user.email,
             subject: 'New SecretCall Verification Code',
             text: emailText,
             html: emailHtml,
-        });
+        }).catch(err => console.error('Error resending verification email:', err.message));
 
         res.status(200).json({ message: 'New verification code sent successfully' });
     } catch (error) {
